@@ -1,0 +1,11 @@
+# Episode 11 — verification log
+
+| Claim | Primary source | Corroborating source |
+|---|---|---|
+| "Bits of information" framing (each roughly-half-splitting question/signal is worth one bit; identifiability is additive across signals) | Standard information-theory framing consistent with how Eckersley's original paper and EFF's Cover Your Tracks both describe entropy | [EFF — "About Cover Your Tracks"](https://coveryourtracks.eff.org/about) |
+| Eckersley's 2010 study: 470,161 browsers, 83.6% unique | Reused from Episode 1's verification (EFF Deeplinks, EFF Press Archive) | — |
+| EFF's Cover Your Tracks (successor to Panopticlick) reports results as "bits of identifying information," summarizing how many other browsers in the observed sample share the same fingerprint | [EFF — "About Cover Your Tracks"](https://coveryourtracks.eff.org/about) (primary, EFF's own description) | [factually.co — "How does the EFF Cover Your Tracks test determine browser uniqueness"](https://factually.co/fact-checks/technology/eff-cover-your-tracks-browser-uniqueness-signals-used-7dc4f3), independent explainer describing the same scoring approach |
+| Common signal values (e.g. a widely-shared `Accept-Language`) contribute little entropy; rare, hardware-dependent signals (canvas/WebGL/audio/font combinations) contribute disproportionately more, consistent with Episode 8's material | Consistent with Eckersley's original findings (screen/canvas/font/plugin-list signals identified as the primary drivers of uniqueness) and with EFF Cover Your Tracks' per-metric "prevalence" reporting, which surfaces exactly this asymmetry | Reused from Episode 8's Englehardt & Narayanan sourcing for canvas/audio prevalence context |
+| This project deliberately does not compute a numeric uniqueness score per fingerprint, because doing so honestly requires a population dataset to compare against, which this stateless, non-persisting tool doesn't have; instead it names which high-entropy signal categories are present | First-party: `public/docs.html` ("Uniqueness and entropy" section) and `src/server/interpret/rules/identifiability.ts`, already-reviewed design decision from this project's original build | — |
+
+No claims in this episode required a "flagged, not used" exclusion.
