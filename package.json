@@ -12,6 +12,7 @@
     "start": "node --import tsx src/server/index.ts",
     "build:client": "node scripts/build-client.mjs",
     "certs": "node scripts/gen-dev-certs.mjs",
+    "probe": "node scripts/probe.mjs",
     "pretest": "node scripts/build-client.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
