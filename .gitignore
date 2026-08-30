@@ -7,3 +7,7 @@ certs/
 *.log
 .DS_Store
 probe-output/
+course/audio/
+course/models/
+course/tools/.venv/
+course/tools/__pycache__/
