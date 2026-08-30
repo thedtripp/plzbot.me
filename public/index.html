@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>plzbot.me — client fingerprinting engine</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <div>
+        <h1>plzbot.me</h1>
+        <p>An educational client fingerprinting engine. This page shows exactly what this server and your browser can observe about the client making this request — right now, live, for you.</p>
+      </div>
+      <nav class="top-nav">
+        <a href="/" class="active">Fingerprint</a>
+        <a href="/docs.html">How it works</a>
+        <a href="/api/v1">API</a>
+      </nav>
+    </header>
+
+    <div class="status-line" id="status-line"></div>
+    <div class="badges" id="badges"></div>
+
+    <div id="results" hidden>
+      <section class="block" id="assessments-section" hidden>
+        <h2>Interpretation <span class="count">— evidence-based, not a bot/not-bot verdict</span></h2>
+        <p class="lead">Each item below cites the specific observations it's based on and is hedged by how spoofable that evidence is. See <a href="/docs.html#cross-signal">cross-signal analysis</a>.</p>
+        <div id="assessments-list"></div>
+      </section>
+
+      <section class="block">
+        <h2>Derived attributes</h2>
+        <p class="lead">Computed from raw observations (e.g. JA3/JA4 hashes, User-Agent guesses) — not sent by the client directly. See <a href="/docs.html#schema">raw vs. normalized vs. derived</a>.</p>
+        <div id="derived-list"></div>
+      </section>
+
+      <section class="block">
+        <h2>Signal explorer</h2>
+        <p class="lead">Every individual observation this fingerprint is built from, grouped by category. Click a row with a highlighted background for an explanation of that signal.</p>
+        <div id="signal-explorer"></div>
+      </section>
+
+      <section class="block">
+        <h2>Raw fingerprint document</h2>
+        <button class="raw-toggle" id="raw-toggle">Show raw JSON</button>
+        <pre class="raw-json" id="raw-json" style="display:none"></pre>
+      </section>
+    </div>
+
+    <footer class="page-footer">
+      <p>
+        Nothing shown here is stored — this app is stateless (see <a href="/docs.html#privacy">privacy</a>).
+        Non-browser clients (curl, Python requests, …) get a server-only fingerprint automatically;
+        <code>client</code> will simply be <code>null</code>. Schema and API: <a href="/api/v1">/api/v1</a>.
+      </p>
+    </footer>
+  </div>
+
+  <script src="/collector.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+public/dist/
+public/collector.js
+public/collector.js.map
+certs/
+*.log
+.DS_Store
