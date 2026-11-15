@@ -2,6 +2,7 @@ import type { Observation } from "../../shared/schema/types.js";
 import { observed, unavailable } from "../../shared/schema/types.js";
 import type { ConnectionMeta } from "../tls-capture/frontProxy.js";
 import type { IncomingMessage } from "node:http";
+import type { RequestContext } from "../runtime/requestContext.js";
 
 /**
  * Untrusted-by-default proxy headers. We always parse and show them (educational value —
@@ -9,8 +10,21 @@ import type { IncomingMessage } from "node:http";
  * directly-observed TCP peer address unless a trusted-proxy configuration says to.
  * See docs/ARCHITECTURE.md "Security & privacy defaults".
  */
-export function collectNetwork(req: IncomingMessage, connectionMeta: ConnectionMeta | undefined): Observation[] {
+export function collectNetwork(
+  req: IncomingMessage,
+  connectionMeta: ConnectionMeta | undefined,
+  ctx?: RequestContext,
+): Observation[] {
   const out: Observation[] = [];
+
+  // The address this deployment considers "the client". Identical to network.remote_ip unless
+  // a trusted reverse proxy is configured (PLZBOT_TRUST_PROXY / PLZBOT_CLIENT_IP_HEADER), in
+  // which case the TCP peer is the proxy and the client comes from a header we chose to trust.
+  if (ctx?.clientIp) {
+    out.push(observed("network.client_ip", "network", "server", ctx.clientIpSource, ctx.clientIp));
+  } else {
+    out.push(unavailable("network.client_ip", "network", "server", ctx?.clientIpSource ?? "tcp_peer"));
+  }
 
   const remoteIp = connectionMeta?.realIp ?? req.socket.remoteAddress;
   const remotePort = connectionMeta?.realPort ?? req.socket.remotePort;

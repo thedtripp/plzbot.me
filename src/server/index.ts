@@ -1,33 +1,60 @@
+import http from "node:http";
 import http2 from "node:http2";
 import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { createApp } from "./app.js";
 import { FrontProxy } from "./tls-capture/frontProxy.js";
+import { loadConfig, type RuntimeConfig } from "./runtime/config.js";
+import { startAcmeHttpServer, watchCertificates } from "./runtime/acmeHttp.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, "..", "..");
+const log = (msg: string) => console.log(msg);
 
-const PUBLIC_PORT = Number(process.env.PLZBOT_PORT ?? 8443);
-const PUBLIC_HOST = process.env.PLZBOT_HOST ?? "127.0.0.1";
-const CERT_PATH = process.env.PLZBOT_TLS_CERT ?? path.join(repoRoot, "certs", "dev-cert.pem");
-const KEY_PATH = process.env.PLZBOT_TLS_KEY ?? path.join(repoRoot, "certs", "dev-key.pem");
-
-function requireCerts(): { cert: Buffer; key: Buffer } {
-  if (!fs.existsSync(CERT_PATH) || !fs.existsSync(KEY_PATH)) {
+function requireCerts(config: RuntimeConfig): { cert: Buffer; key: Buffer } {
+  if (!fs.existsSync(config.certPath) || !fs.existsSync(config.keyPath)) {
     console.error(
-      `TLS certificate not found at ${CERT_PATH} / ${KEY_PATH}.\n` +
-        `Run 'npm run certs' to generate a local development certificate, or set\n` +
-        `PLZBOT_TLS_CERT / PLZBOT_TLS_KEY to point at your own.`,
+      `TLS certificate not found at ${config.certPath} / ${config.keyPath}.\n` +
+        `Run 'npm run certs' to generate a local development certificate, set\n` +
+        `PLZBOT_TLS_CERT / PLZBOT_TLS_KEY to point at your own, or run with PLZBOT_MODE=http\n` +
+        `behind a TLS-terminating proxy (see deploy/README.md).`,
     );
     process.exit(1);
   }
-  return { cert: fs.readFileSync(CERT_PATH), key: fs.readFileSync(KEY_PATH) };
+  return { cert: fs.readFileSync(config.certPath), key: fs.readFileSync(config.keyPath) };
 }
 
-async function main(): Promise<void> {
-  const { cert, key } = requireCerts();
-  const app = createApp();
+/**
+ * PLZBOT_MODE=http — plain HTTP/1.1 listener for PaaS-style deployments where the platform
+ * terminates TLS and proxies to us. The TLS/JA3/JA4 half of the fingerprint is reported as
+ * unavailable in this mode; everything else (headers, Client Hints, browser signals) works.
+ */
+async function startHttpMode(config: RuntimeConfig): Promise<void> {
+  const app = createApp(config);
+  const server = http.createServer(app);
+  await new Promise<void>((resolve) => server.listen(config.port, config.host, resolve));
+  log(`plzbot.me listening in HTTP mode on http://${config.host}:${config.port}`);
+  log(
+    config.trustedProxy.hops > 0 || config.trustedProxy.clientIpHeader
+      ? `Trusting proxy: hops=${config.trustedProxy.hops} clientIpHeader=${config.trustedProxy.clientIpHeader ?? "(none)"}`
+      : `No trusted proxy configured — X-Forwarded-* will be shown but not trusted (set PLZBOT_TRUST_PROXY).`,
+  );
+  log(`TLS handshake signals (JA3/JA4) are unavailable in this mode; run PLZBOT_MODE=tls to self-terminate TLS.`);
+
+  const shutdown = () => {
+    log("\nShutting down...");
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 2000).unref();
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+}
+
+/**
+ * PLZBOT_MODE=tls (default) — we terminate TLS ourselves behind the raw-socket front proxy so
+ * the ClientHello is observable (docs/TLS_CAPTURE.md). Optionally also runs a plain-HTTP
+ * helper (PLZBOT_HTTP_PORT) for ACME challenges + redirects, and hot-reloads renewed certs.
+ */
+async function startTlsMode(config: RuntimeConfig): Promise<void> {
+  const { cert, key } = requireCerts(config);
+  const app = createApp(config);
 
   const internalServer = http2.createSecureServer({
     cert,
@@ -44,8 +71,8 @@ async function main(): Promise<void> {
   }
 
   const frontProxy = new FrontProxy({
-    publicPort: PUBLIC_PORT,
-    publicHost: PUBLIC_HOST,
+    publicPort: config.port,
+    publicHost: config.host,
     internalHost: "127.0.0.1",
     internalPort: internalAddress.port,
     internalTlsServer: internalServer,
@@ -53,18 +80,32 @@ async function main(): Promise<void> {
   });
 
   await frontProxy.listen();
-  console.log(`plzbot.me fingerprinting engine listening on https://${PUBLIC_HOST}:${PUBLIC_PORT}`);
-  console.log(`(internal TLS-terminating server on loopback port ${internalAddress.port}, not directly reachable)`);
-  console.log(`Self-signed dev certificate — browsers will show a warning; curl needs -k / --insecure.`);
+  log(`plzbot.me fingerprinting engine listening on https://${config.host}:${config.port}`);
+  log(`(internal TLS-terminating server on loopback port ${internalAddress.port}, not directly reachable)`);
+  if (config.certPath.includes("dev-cert")) {
+    log(`Self-signed dev certificate — browsers will show a warning; curl needs -k / --insecure.`);
+  }
+
+  let acmeServer: http.Server | null = null;
+  if (config.httpPort > 0) acmeServer = startAcmeHttpServer(config, log);
+  const stopWatching = watchCertificates(config, (opts) => internalServer.setSecureContext(opts), log);
 
   const shutdown = async () => {
-    console.log("\nShutting down...");
+    log("\nShutting down...");
+    stopWatching();
+    acmeServer?.close();
     await frontProxy.close();
     internalServer.close();
     process.exit(0);
   };
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
+}
+
+async function main(): Promise<void> {
+  const config = loadConfig();
+  if (config.mode === "http") await startHttpMode(config);
+  else await startTlsMode(config);
 }
 
 main().catch((err) => {

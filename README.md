@@ -34,6 +34,20 @@ spin up the real server and exercise it with real clients: Node's `https`/`http2
 actual `curl` binary (skipped if not on `PATH`), and a real headless Chromium instance via
 Playwright (downloaded automatically on `npm install`).
 
+## Deploying
+
+`deploy/README.md` covers both deployment modes: self-terminated TLS on a free VM (Oracle
+Cloud / Google Cloud always-free tiers, Let's Encrypt via the included `docker-compose.yml`),
+which keeps JA3/JA4, and plain-HTTP mode for any PaaS (Render, Fly, Cloud Run) where the
+platform terminates TLS. Configuration is entirely via environment variables (`PLZBOT_MODE`,
+`PLZBOT_TRUST_PROXY`, …).
+
+```sh
+npm run build && npm start                         # compiled production start (TLS mode)
+PLZBOT_MODE=http PORT=8080 npm start               # behind a TLS-terminating proxy
+docker build -t plzbot . && docker compose up -d   # VM deployment with certbot sidecar
+```
+
 ## Documentation
 
 - `docs/ARCHITECTURE.md` — stack decisions, request flow, signal availability by environment.
@@ -41,6 +55,7 @@ Playwright (downloaded automatically on `npm install`).
 - `docs/TLS_CAPTURE.md` — how raw TLS ClientHello bytes are captured for JA3/JA4 (and why the
   obvious approach doesn't work).
 - `docs/API.md` — endpoint reference, error handling, CORS, security considerations.
+- `deploy/README.md` — deployment modes, environment variables, free-tier VM and PaaS recipes.
 - `public/docs.html` — the in-app educational write-up (served at `/docs.html`), covering HTTP,
   TLS, HTTP/2, and browser fingerprinting concepts for a general audience.
 

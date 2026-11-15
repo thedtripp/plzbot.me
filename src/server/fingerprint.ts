@@ -16,6 +16,8 @@ import { deriveTls } from "./derive/tlsDerived.js";
 import { deriveUserAgent } from "./derive/uaDerived.js";
 import { runInterpretation } from "./interpret/engine.js";
 import { getConnectionMeta } from "./tls-capture/frontProxy.js";
+import { loadConfig, type RuntimeConfig } from "./runtime/config.js";
+import { getRequestContext } from "./runtime/requestContext.js";
 
 export interface ClientSubmission {
   navigator?: Observation[];
@@ -30,12 +32,13 @@ export interface ClientSubmission {
   automation?: Observation[];
 }
 
-function buildServerHalf(req: IncomingMessage): Pick<Fingerprint, "server" | "request"> {
+function buildServerHalf(req: IncomingMessage, config: RuntimeConfig): Pick<Fingerprint, "server" | "request"> {
   const socket = req.socket as TLSSocket;
   const connectionMeta = getConnectionMeta(socket);
+  const ctx = getRequestContext(req, config);
 
   const server = {
-    network: collectNetwork(req, connectionMeta),
+    network: collectNetwork(req, connectionMeta, ctx),
     tls: collectTls(req, connectionMeta),
     http: collectHttp(req),
     http2: collectHttp2(req),
@@ -46,7 +49,7 @@ function buildServerHalf(req: IncomingMessage): Pick<Fingerprint, "server" | "re
     method: req.method ?? "",
     httpVersion: req.httpVersion,
     target: req.url ?? "",
-    scheme: "https" as const,
+    scheme: ctx.scheme,
     receivedAt: new Date().toISOString(),
   };
 
@@ -75,8 +78,15 @@ function isEmptyClientSignals(payload: ClientSubmission | undefined): boolean {
   );
 }
 
-export function buildFingerprint(req: IncomingMessage, clientPayload?: ClientSubmission): Fingerprint {
-  const { server, request } = buildServerHalf(req);
+let defaultConfig: RuntimeConfig | null = null;
+
+export function buildFingerprint(
+  req: IncomingMessage,
+  clientPayload?: ClientSubmission,
+  config?: RuntimeConfig,
+): Fingerprint {
+  const cfg = config ?? (defaultConfig ??= loadConfig());
+  const { server, request } = buildServerHalf(req, cfg);
 
   const client: ClientSignals | null = isEmptyClientSignals(clientPayload)
     ? null
