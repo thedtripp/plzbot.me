@@ -1,0 +1,12 @@
+node_modules
+dist
+certs
+acme-webroot
+probe-output
+course
+docs
+tests
+.git
+*.log
+.DS_Store
+MANUAL_TEST_PLAN.md

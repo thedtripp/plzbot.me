@@ -18,7 +18,24 @@ export function collectTls(req: IncomingMessage, connectionMeta: ConnectionMeta 
   const isTls = typeof socket.getProtocol === "function";
 
   if (!isTls) {
-    out.push(unavailable("tls.negotiated_protocol", "tls", "server", "tls_socket"));
+    // Plain-HTTP deployment (PLZBOT_MODE=http): some upstream proxy/load balancer terminated TLS,
+    // so nothing about the handshake is observable here. Reported per-signal as unavailable
+    // rather than omitted, per the "never make it look like a signal was never tested" rule.
+    const method = "tls_terminated_upstream";
+    for (const id of [
+      "tls.negotiated_protocol",
+      "tls.negotiated_cipher",
+      "tls.alpn_negotiated",
+      "tls.clienthello.version",
+      "tls.clienthello.cipher_suites",
+      "tls.clienthello.extensions",
+      "tls.clienthello.supported_groups",
+      "tls.clienthello.signature_algorithms",
+      "tls.clienthello.sni",
+      "tls.clienthello.alpn_offered",
+    ]) {
+      out.push(unavailable(id, "tls", "server", method));
+    }
     return out;
   }
 

@@ -1,14 +1,11 @@
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { Router, readJsonBody, type Handler } from "./http/router.js";
 import { serveStatic } from "./http/staticFiles.js";
 import { buildFingerprint, type ClientSubmission } from "./fingerprint.js";
 import { ACCEPT_CH_VALUE } from "./collectors/clientHints.js";
 import { SIGNAL_CATALOG } from "./interpret/catalog.js";
 import { SCHEMA_VERSION } from "../shared/schema/types.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const publicDir = path.resolve(__dirname, "..", "..", "public");
+import { PUBLIC_DIR } from "./runtime/paths.js";
+import { loadConfig, type RuntimeConfig } from "./runtime/config.js";
 
 function json(res: Parameters<Handler>[1], status: number, body: unknown): void {
   res.statusCode = status;
@@ -16,12 +13,16 @@ function json(res: Parameters<Handler>[1], status: number, body: unknown): void 
   res.end(JSON.stringify(body));
 }
 
-export function createApp(): Handler {
+export function createApp(config: RuntimeConfig = loadConfig()): Handler {
   const router = new Router();
-  const staticHandler = serveStatic(publicDir);
+  const staticHandler = serveStatic(PUBLIC_DIR);
+
+  router.get("/healthz", (_req, res) => {
+    json(res, 200, { ok: true, mode: config.mode, schemaVersion: SCHEMA_VERSION });
+  });
 
   router.get("/api/v1/fingerprint", (req, res) => {
-    const fp = buildFingerprint(req);
+    const fp = buildFingerprint(req, undefined, config);
     json(res, 200, fp);
   });
 
@@ -37,7 +38,7 @@ export function createApp(): Handler {
       json(res, 400, { error: "Request body must be a JSON object of client observation arrays." });
       return;
     }
-    const fp = buildFingerprint(req, body as ClientSubmission | undefined);
+    const fp = buildFingerprint(req, body as ClientSubmission | undefined, config);
     json(res, 200, fp);
   });
 

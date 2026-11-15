@@ -35,6 +35,20 @@ This matters because the spec requires never claiming to observe something we ca
 | HTTP/2 pseudo-header order, PRIORITY frames | Not available via Express/compat API | Recorded as `unavailable` with an explanation; would require dropping to `http2.createSecureServer` non-compat `'stream'` handling and raw frame inspection. |
 | JavaScript/browser signals | Yes, once the page's collector runs | Everything under `client.*` in the schema. Not applicable to non-browser clients (curl, `requests`) — represented as `client: { status: "not_submitted" }`, not as an error. |
 
+## Deployment modes
+
+`src/server/runtime/config.ts` reads everything from the environment. `PLZBOT_MODE=tls`
+(default) is the architecture described in this document: raw-socket front proxy, self-terminated
+TLS, full ClientHello capture. `PLZBOT_MODE=http` starts a plain `http.createServer` instead,
+for platforms that terminate TLS upstream: the TLS category is reported per-signal as
+`unavailable` with `collectionMethod: "tls_terminated_upstream"`, and the client address comes
+from `X-Forwarded-For` / a platform header **only** when `PLZBOT_TRUST_PROXY` /
+`PLZBOT_CLIENT_IP_HEADER` say to (`network.client_ip` carries its provenance in
+`collectionMethod`; `network.remote_ip` is always the real TCP peer). TLS mode can also run a
+plain-HTTP helper (`PLZBOT_HTTP_PORT`) that serves ACME HTTP-01 challenges from a webroot and
+redirects everything else to https, and it hot-reloads renewed certificate files. See
+`deploy/README.md`.
+
 ## Request flow
 
 ```

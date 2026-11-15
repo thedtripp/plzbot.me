@@ -9,8 +9,12 @@
   },
   "scripts": {
     "dev": "tsx watch src/server/index.ts",
-    "start": "node --import tsx src/server/index.ts",
+    "dev:http": "PLZBOT_MODE=http PLZBOT_TRUST_PROXY=0 tsx watch src/server/index.ts",
+    "start": "node dist/src/server/index.js",
+    "start:src": "node --import tsx src/server/index.ts",
+    "build": "npm run build:client && npm run build:server",
     "build:client": "node scripts/build-client.mjs",
+    "build:server": "tsc -p tsconfig.build.json",
     "certs": "node scripts/gen-dev-certs.mjs",
     "probe": "node scripts/probe.mjs",
     "pretest": "node scripts/build-client.mjs",

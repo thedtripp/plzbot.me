@@ -1,0 +1,42 @@
+# Self-hosted deployment with real TLS (full JA3/JA4 fingerprinting) on any VM with Docker.
+# See deploy/README.md for the one-time certificate bootstrap and the free-tier VM options.
+#
+#   cp deploy/env.example .env   # set PLZBOT_DOMAIN and ACME_EMAIL
+#   ./deploy/bootstrap-certs.sh  # one-time: obtains the first Let's Encrypt certificate
+#   docker compose up -d
+services:
+  plzbot:
+    build: .
+    image: plzbot:latest
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      PLZBOT_MODE: tls
+      PLZBOT_HOST: 0.0.0.0
+      PLZBOT_PORT: "443"
+      PLZBOT_HTTP_PORT: "80"
+      PLZBOT_TLS_CERT: /etc/letsencrypt/live/${PLZBOT_DOMAIN}/fullchain.pem
+      PLZBOT_TLS_KEY: /etc/letsencrypt/live/${PLZBOT_DOMAIN}/privkey.pem
+      PLZBOT_ACME_WEBROOT: /acme-webroot
+      PLZBOT_PUBLIC_ORIGIN: https://${PLZBOT_DOMAIN}
+      PLZBOT_IP2ASN_PATH: ${PLZBOT_IP2ASN_PATH:-}
+    volumes:
+      - letsencrypt:/etc/letsencrypt:ro
+      - acme-webroot:/acme-webroot:ro
+      - ./data:/data:ro
+
+  # Renews the certificate in place; the app polls the files and hot-reloads them (no restart).
+  certbot:
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    entrypoint: /bin/sh
+    command: -c "trap exit TERM; while :; do certbot renew --webroot -w /acme-webroot --quiet; sleep 12h & wait $${!}; done"
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - acme-webroot:/acme-webroot
+
+volumes:
+  letsencrypt:
+  acme-webroot:
