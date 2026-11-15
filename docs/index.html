@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="light dark" />
+<link rel="icon" href="data:," />
+<title>plzbot.me — Please, bot me.</title>
+<meta name="description" content="plzbot.me checks the ID of every AI agent that knocks on your API or MCP server. What is it, is it who it claims to be, and is it behaving?" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f6f4ec;
+    --bg-2:#efece0;
+    --surface:#ffffff;
+    --surface-2:#fbfaf5;
+    --ink:#12160f;
+    --ink-2:#3d4538;
+    --muted:#6b7563;
+    --line:#ddd9c8;
+    --line-strong:#12160f;
+    --green:#166534;
+    --green-bright:#22c55e;
+    --lime:#c8f04a;
+    --lime-ink:#1a2605;
+    --amber:#b45309;
+    --amber-bg:#fef3c7;
+    --red:#b91c1c;
+    --red-bg:#fee2e2;
+    --green-bg:#dcfce7;
+    --code-bg:#10140e;
+    --code-ink:#e8f0df;
+    --code-dim:#8a9a7d;
+    --code-green:#a3e635;
+    --code-amber:#fbbf24;
+    --shadow: 8px 8px 0 #12160f;
+    --radius:14px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0d100b;
+      --bg-2:#12160f;
+      --surface:#171c13;
+      --surface-2:#1c2317;
+      --ink:#eef2e4;
+      --ink-2:#c6cfb8;
+      --muted:#93a086;
+      --line:#2c3524;
+      --line-strong:#eef2e4;
+      --green:#4ade80;
+      --green-bright:#22c55e;
+      --lime:#c8f04a;
+      --lime-ink:#1a2605;
+      --amber:#fbbf24;
+      --amber-bg:#2b2108;
+      --red:#f87171;
+      --red-bg:#2b1212;
+      --green-bg:#12291a;
+      --code-bg:#080a07;
+      --code-ink:#e8f0df;
+      --shadow: 8px 8px 0 #000;
+    }
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} *{animation:none!important; transition:none!important} }
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  a{color:inherit}
+  button,[role="button"],summary,input,select{ min-height:44px }
+  .mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+  /* ---------- header ---------- */
+  header{position:sticky;top:0;z-index:40;background:color-mix(in srgb, var(--bg) 88%, transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .nav{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0}
+  .brand{display:flex;align-items:center;gap:10px;text-decoration:none;font-family:Archivo,sans-serif;font-weight:900;font-size:20px;letter-spacing:-.02em}
+  .brand .dotme{color:var(--green)}
+  .brand-badge{width:34px;height:34px;border:2px solid var(--line-strong);background:var(--lime);color:var(--lime-ink);display:grid;place-items:center;font-family:"IBM Plex Mono",monospace;font-weight:700;font-size:15px;border-radius:8px;flex:none}
+  .nav-links{display:none;gap:26px;font-size:14px;font-weight:500;color:var(--ink-2)}
+  .nav-links a{text-decoration:none;padding:8px 2px}
+  .nav-links a:hover{color:var(--ink);text-decoration:underline;text-underline-offset:4px}
+  @media(min-width:820px){ .nav-links{display:flex} }
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;font-weight:600;font-size:15px;padding:11px 18px;border-radius:10px;border:2px solid var(--line-strong);cursor:pointer;transition:transform .12s ease, box-shadow .12s ease;white-space:nowrap}
+  .btn:active{transform:translate(2px,2px)}
+  .btn-primary{background:var(--ink);color:var(--bg);box-shadow:4px 4px 0 var(--green-bright)}
+  .btn-primary:hover{transform:translate(-1px,-1px);box-shadow:5px 5px 0 var(--green-bright)}
+  .btn-lime{background:var(--lime);color:var(--lime-ink);box-shadow:4px 4px 0 var(--line-strong)}
+  .btn-ghost{background:var(--surface);color:var(--ink)}
+  .btn-small{padding:8px 14px;font-size:14px;min-height:40px}
+  /* ---------- hero ---------- */
+  .hero{padding:52px 0 28px;overflow:hidden}
+  @media(min-width:900px){ .hero{padding:72px 0 40px} }
+  .hero-grid{display:grid;gap:36px}
+  @media(min-width:960px){ .hero-grid{grid-template-columns:1.05fr .95fr;align-items:start;gap:44px} }
+  .pill{display:inline-flex;align-items:center;gap:8px;border:1.5px solid var(--line-strong);background:var(--surface);border-radius:999px;padding:6px 12px 6px 8px;font-size:13px;font-weight:600}
+  .pill .live{width:8px;height:8px;border-radius:50%;background:var(--green-bright);box-shadow:0 0 0 3px var(--green-bg)}
+  h1{font-family:Archivo,sans-serif;font-weight:900;letter-spacing:-.035em;line-height:.95;font-size:clamp(52px,9vw,92px);margin:18px 0 0}
+  h1 .plz{display:block}
+  h1 .botme{display:block}
+  h1 .hl{background:var(--lime);color:var(--lime-ink);padding:0 .12em;box-decoration-break:clone;-webkit-box-decoration-break:clone;border-radius:4px}
+  .hero-sub{font-size:19px;line-height:1.55;color:var(--ink-2);max-width:34em;margin:22px 0 0}
+  .hero-sub strong{color:var(--ink)}
+  .hero-ctas{display:flex;flex-wrap:wrap;gap:12px;margin-top:26px}
+  .hero-note{margin-top:14px;font-size:13.5px;color:var(--muted)}
+  .hero-note a{font-weight:600;color:var(--ink)}
+  .door-card{background:var(--surface);border:2px solid var(--line-strong);border-radius:18px;box-shadow:var(--shadow);overflow:hidden}
+  .door-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);background:var(--surface-2)}
+  .door-head .who{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--muted)}
+  .verdict{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:700;letter-spacing:.06em;padding:5px 10px;border-radius:999px;border:1.5px solid currentColor}
+  .verdict.allow{color:var(--green);background:var(--green-bg)}
+  .verdict.throttle{color:var(--amber);background:var(--amber-bg)}
+  .verdict.block{color:var(--red);background:var(--red-bg)}
+  .door-body{padding:18px 16px 16px}
+  .knock-line{display:flex;gap:12px;align-items:flex-start}
+  .avatar{width:44px;height:44px;border-radius:12px;border:2px solid var(--line-strong);display:grid;place-items:center;font-size:22px;flex:none;background:var(--bg-2)}
+  .knock-line h3{margin:2px 0 2px;font-size:16px;line-height:1.3}
+  .knock-line p{margin:0;font-size:13.5px;color:var(--muted);line-height:1.45}
+  .checks{margin:16px 0 0;display:grid;gap:8px}
+  .check{display:flex;gap:10px;align-items:flex-start;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13.5px}
+  .check .ic{flex:none;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;margin-top:1px}
+  .ic.ok{background:var(--green-bg);color:var(--green)}
+  .ic.warn{background:var(--amber-bg);color:var(--amber)}
+  .ic.bad{background:var(--red-bg);color:var(--red)}
+  .check b{font-weight:600}
+  .check span{color:var(--muted)}
+  .door-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+  .chip-btn{flex:1;min-width:calc(50% - 4px);background:var(--surface);border:1.5px solid var(--line);border-radius:10px;padding:10px 8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--ink)}
+  .chip-btn[aria-pressed="true"]{border-color:var(--line-strong);background:var(--lime);color:var(--lime-ink)}
+  .knock-btn{width:100%;margin-top:10px}
+  /* ticker */
+  .ticker{border-top:2px solid var(--line-strong);border-bottom:2px solid var(--line-strong);background:var(--ink);color:var(--bg);overflow:hidden;margin-top:44px}
+  .ticker-track{display:flex;gap:0;width:max-content;animation:tick 28s linear infinite;padding:10px 0}
+  .ticker span{font-family:"IBM Plex Mono",monospace;font-size:12.5px;letter-spacing:.08em;padding:0 18px;white-space:nowrap;opacity:.92}
+  .ticker b{color:var(--lime);font-weight:600}
+  @keyframes tick{to{transform:translateX(-50%)}}
+  /* sections */
+  section{padding:64px 0 8px}
+  .kicker{font-family:"IBM Plex Mono",monospace;font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--green);font-weight:600;margin:0 0 10px}
+  h2{font-family:Archivo,sans-serif;font-weight:800;letter-spacing:-.025em;line-height:1.05;font-size:clamp(30px,4.6vw,44px);margin:0;max-width:18em}
+  .lede{font-size:17.5px;color:var(--ink-2);max-width:42em;margin:14px 0 0}
+  /* three questions */
+  .questions{margin-top:30px;border:2px solid var(--line-strong);border-radius:18px;background:var(--surface);overflow:hidden}
+  .qrow{display:grid;gap:6px;padding:22px 20px;border-bottom:1px solid var(--line)}
+  .qrow:last-child{border-bottom:0}
+  @media(min-width:760px){ .qrow{grid-template-columns:64px 240px 1fr;gap:18px;align-items:start} }
+  .qnum{font-family:Archivo,sans-serif;font-weight:900;font-size:30px;line-height:1;color:var(--green)}
+  .qrow h3{margin:2px 0 0;font-family:Archivo,sans-serif;font-size:20px;letter-spacing:-.01em;line-height:1.2}
+  .qrow p{margin:0;color:var(--ink-2);font-size:15.5px}
+  .qrow p code{font-family:"IBM Plex Mono",monospace;font-size:.86em;background:var(--bg-2);padding:1px 6px;border-radius:6px;border:1px solid var(--line)}
+  /* evidence / code */
+  .evidence-grid{display:grid;gap:20px;margin-top:30px}
+  @media(min-width:960px){ .evidence-grid{grid-template-columns:.92fr 1.08fr;align-items:start} }
+  .signal-list{display:grid;gap:10px}
+  .signal{display:flex;gap:12px;padding:14px 14px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+  .signal .tag{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:700;letter-spacing:.05em;border:1.5px solid var(--line-strong);border-radius:6px;padding:3px 7px;height:fit-content;flex:none;margin-top:2px}
+  .signal h4{margin:0;font-size:15px}
+  .signal p{margin:2px 0 0;font-size:13.5px;color:var(--muted);line-height:1.5}
+  .codecard{background:var(--code-bg);color:var(--code-ink);border-radius:16px;border:2px solid var(--line-strong);overflow:hidden;box-shadow:var(--shadow)}
+  .code-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid #26301f}
+  .code-head .file{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--code-dim)}
+  .copy-btn{background:transparent;color:var(--code-ink);border:1.5px solid #3a472f;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:"IBM Plex Mono",monospace;min-height:36px}
+  .copy-btn:hover{border-color:var(--lime);color:var(--lime)}
+  #headersBlock{white-space:pre-wrap;overflow-wrap:anywhere}
+  pre{margin:0;padding:16px;overflow-x:auto;font-family:"IBM Plex Mono",monospace;font-size:12.8px;line-height:1.65}
+  pre .k{color:#93c5fd} pre .s{color:var(--code-green)} pre .n{color:var(--code-amber)} pre .c{color:var(--code-dim)} pre .p{color:#f0abfc}
+  .code-note{padding:12px 16px;border-top:1px solid #26301f;font-size:13px;color:var(--code-dim)}
+  .code-note b{color:var(--code-ink)}
+  /* policy */
+  .policy{margin-top:30px;display:grid;gap:12px}
+  @media(min-width:760px){ .policy{grid-template-columns:repeat(2,1fr)} }
+  @media(min-width:1020px){ .policy{grid-template-columns:repeat(4,1fr)} }
+  .pol{border:2px solid var(--line-strong);border-radius:14px;padding:18px;background:var(--surface)}
+  .pol .verb{font-family:Archivo,sans-serif;font-weight:900;font-size:22px;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+  .pol .verb i{width:12px;height:12px;border-radius:50%;flex:none}
+  .pol p{margin:8px 0 0;font-size:14px;color:var(--ink-2);line-height:1.55}
+  .pol .when{margin-top:12px;font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--muted);line-height:1.5}
+  /* pay for */
+  .pay-grid{margin-top:30px;display:grid;gap:0;border-top:1px solid var(--line)}
+  .pay-row{display:grid;gap:8px;padding:24px 0;border-bottom:1px solid var(--line)}
+  @media(min-width:820px){ .pay-row{grid-template-columns:1fr 1.4fr;gap:32px} }
+  .pay-row h3{margin:0;font-family:Archivo,sans-serif;font-size:21px;letter-spacing:-.01em;line-height:1.25}
+  .pay-row h3 em{font-style:normal;background:var(--lime);color:var(--lime-ink);padding:0 6px;border-radius:4px}
+  .pay-row p{margin:0;color:var(--ink-2);font-size:15.5px}
+  .pay-row .stat{margin-top:8px;font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--muted)}
+  /* steps */
+  .steps{margin-top:30px;display:grid;gap:14px}
+  @media(min-width:820px){ .steps{grid-template-columns:repeat(3,1fr)} }
+  .step{background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:20px}
+  .step .n{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--green)}
+  .step h3{margin:8px 0 6px;font-size:17px;font-family:Archivo,sans-serif}
+  .step p{margin:0;font-size:14.5px;color:var(--ink-2)}
+  .step code{font-family:"IBM Plex Mono",monospace;font-size:.85em;background:var(--bg-2);border:1px solid var(--line);padding:1px 5px;border-radius:5px}
+  .fit-grid{margin-top:30px;display:grid;gap:14px}
+  @media(min-width:820px){ .fit-grid{grid-template-columns:1fr 1fr} }
+  .fit{border-radius:14px;padding:20px;border:2px solid var(--line-strong)}
+  .fit.yes{background:var(--surface)}
+  .fit.no{background:var(--bg-2);border-style:dashed}
+  .fit h3{margin:0 0 12px;font-family:Archivo,sans-serif;font-size:18px}
+  .fit ul{margin:0;padding:0;list-style:none;display:grid;gap:9px;font-size:14.5px;color:var(--ink-2)}
+  .fit li{display:flex;gap:10px;align-items:flex-start}
+  .fit li::before{flex:none;margin-top:1px;font-weight:800}
+  .fit.yes li::before{content:"✓";color:var(--green)}
+  .fit.no li::before{content:"—";color:var(--muted)}
+  /* pricing */
+  .pricing{margin-top:30px;display:grid;gap:14px}
+  @media(min-width:900px){ .pricing{grid-template-columns:repeat(3,1fr);align-items:stretch} }
+  .price-card{background:var(--surface);border:2px solid var(--line-strong);border-radius:16px;padding:24px;display:flex;flex-direction:column}
+  .price-card.featured{background:var(--ink);color:var(--bg);box-shadow:var(--shadow)}
+  .price-card .tier{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;opacity:.75}
+  .price{font-family:Archivo,sans-serif;font-weight:900;font-size:40px;letter-spacing:-.03em;margin:10px 0 2px;line-height:1}
+  .price small{font-size:15px;font-weight:600;letter-spacing:0}
+  .price-card .for{font-size:14px;opacity:.85;margin:0}
+  .price-card ul{margin:18px 0 22px;padding:0;list-style:none;display:grid;gap:9px;font-size:14.5px}
+  .price-card li{display:flex;gap:9px;align-items:flex-start}
+  .price-card li::before{content:"✓";font-weight:800;color:var(--green);flex:none}
+  .price-card.featured li::before{color:var(--lime)}
+  .price-card .btn{margin-top:auto;width:100%}
+  .price-card.featured .btn{background:var(--lime);color:var(--lime-ink)}
+  .pricing-note{margin-top:14px;font-size:13.5px;color:var(--muted);text-align:center}
+  /* faq */
+  .faq{margin-top:28px;display:grid;gap:10px}
+  details{background:var(--surface);border:1.5px solid var(--line);border-radius:12px;overflow:hidden}
+  details[open]{border-color:var(--line-strong)}
+  summary{cursor:pointer;padding:16px 18px;font-weight:600;font-size:16px;list-style:none;display:flex;justify-content:space-between;gap:16px;align-items:center}
+  summary::-webkit-details-marker{display:none}
+  summary::after{content:"+";font-family:"IBM Plex Mono",monospace;font-size:20px;line-height:1;flex:none;color:var(--green)}
+  details[open] summary::after{content:"−"}
+  details .ans{padding:0 18px 18px;color:var(--ink-2);font-size:15px;max-width:46em}
+  details .ans p{margin:0 0 10px} details .ans p:last-child{margin-bottom:0}
+  details .ans code{font-family:"IBM Plex Mono",monospace;font-size:.86em;background:var(--bg-2);border:1px solid var(--line);padding:1px 6px;border-radius:6px}
+  /* final cta */
+  .final{margin:72px 0 0;background:var(--ink);color:var(--bg);border-radius:22px;padding:36px 24px;text-align:center;border:2px solid var(--line-strong)}
+  @media(min-width:760px){ .final{padding:52px 40px} }
+  .final h2{color:var(--bg);margin:0 auto;max-width:16em}
+  .final h2 .hl{background:var(--lime);color:var(--lime-ink);padding:0 .12em;border-radius:4px}
+  .final p{color:color-mix(in srgb, var(--bg) 78%, transparent);max-width:36em;margin:16px auto 0;font-size:17px}
+  .final .hero-ctas{justify-content:center}
+  .final .btn-ghost{background:transparent;color:var(--bg);border-color:var(--bg)}
+  .waitlist{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:24px}
+  .waitlist input{flex:1;min-width:220px;max-width:360px;padding:12px 14px;border-radius:10px;border:2px solid color-mix(in srgb, var(--bg) 40%, transparent);background:transparent;color:var(--bg);font-size:15px;font-family:inherit}
+  .waitlist input::placeholder{color:color-mix(in srgb, var(--bg) 55%, transparent)}
+  .form-msg{margin-top:12px;font-size:13.5px;min-height:1.4em;color:var(--lime)}
+  footer{padding:36px 0 44px;margin-top:56px;border-top:1px solid var(--line)}
+  .foot{display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:flex-start}
+  .foot p{margin:6px 0 0;font-size:13.5px;color:var(--muted);max-width:34em}
+  .foot-links{display:flex;flex-wrap:wrap;gap:6px 20px;font-size:14px}
+  .foot-links a{text-decoration:none;padding:8px 2px;font-weight:500}
+  .foot-links a:hover{text-decoration:underline;text-underline-offset:4px}
+  .toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,80px);background:var(--ink);color:var(--bg);padding:11px 18px;border-radius:999px;font-size:14px;font-weight:600;z-index:60;transition:transform .25s ease;box-shadow:0 10px 30px rgba(0,0,0,.25);pointer-events:none}
+  .toast.show{transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a class="brand" href="#top" aria-label="plzbot.me home">
+      <span class="brand-badge">plz</span>
+      <span>plzbot<span class="dotme">.me</span></span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="#questions">What it checks</a>
+      <a href="#evidence">Evidence</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <a class="btn btn-primary btn-small" href="#waitlist">Join the waitlist</a>
+  </div>
+</header>
+
+<main id="top">
+  <!-- HERO -->
+  <div class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <span class="pill"><span class="live" aria-hidden="true"></span> Waitlist open — in development · For APIs &amp; MCP servers</span>
+        <h1><span class="plz">Please,</span><span class="botme"><span class="hl">bot me.</span></span></h1>
+        <p class="hero-sub">Every agent that knocks on your API is saying <em>plz</em>. <strong>plzbot.me is being built as the bouncer at the door</strong> — it will check the ID of every AI agent, SDK client, and script before it gets in, so you can welcome the good bots and stop the ones costing you money.</p>
+        <div class="hero-ctas">
+          <a class="btn btn-lime" href="#waitlist">Join the waitlist →</a>
+          <a class="btn btn-ghost" href="#demo">See who’s knocking ↓</a>
+        </div>
+        <p class="hero-note">Self-serve. No sales call. No enterprise contract.<br>Built for the teams too small for DataDome — and too exposed to do nothing.</p>
+      </div>
+
+      <div class="door-card" id="demo" aria-live="polite">
+        <div class="door-head">
+          <span class="who mono" id="doorEndpoint">POST /v1/tools/search · example</span>
+          <span class="verdict allow" id="doorVerdict">✓ ALLOW</span>
+        </div>
+        <div class="door-body">
+          <div class="knock-line">
+            <div class="avatar" id="doorAvatar" aria-hidden="true">🤖</div>
+            <div>
+              <h3 id="doorTitle">A shopping agent, acting for a real customer</h3>
+              <p id="doorSub">Claims: <span class="mono">agent: shop-assistant/2.1</span> · Signed with Web Bot Auth</p>
+            </div>
+          </div>
+          <div class="checks" id="doorChecks"></div>
+          <p class="mono" style="margin:14px 0 0;font-size:11.5px;letter-spacing:.08em;color:var(--muted)">SIMULATED EXAMPLE — ILLUSTRATIVE, NOT LIVE TRAFFIC</p>
+          <div class="door-actions" role="group" aria-label="Try a different visitor">
+            <button class="chip-btn" type="button" data-visitor="good" aria-pressed="true">Good agent</button>
+            <button class="chip-btn" type="button" data-visitor="sdk" aria-pressed="false">Unknown SDK</button>
+            <button class="chip-btn" type="button" data-visitor="scraper" aria-pressed="false">Price scraper</button>
+            <button class="chip-btn" type="button" data-visitor="loop" aria-pressed="false">Runaway loop</button>
+          </div>
+          <button class="btn btn-primary knock-btn" type="button" id="knockBtn">🚪 Knock again — next visitor</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ticker" aria-hidden="true">
+      <div class="ticker-track" id="tickerTrack">
+        <span>JA3 / JA4 TLS FINGERPRINTS <b>·</b></span><span>HTTP/2 SETTINGS <b>·</b></span><span>HEADER ORDER <b>·</b></span><span>WEB BOT AUTH SIGNATURES <b>·</b></span><span>STAINLESS SDK HEADERS <b>·</b></span><span>CANVAS · WEBGL · AUDIO <b>·</b></span><span>LOOP DETECTION <b>·</b></span><span>SIGNED VERDICT JWTs <b>·</b></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- THREE QUESTIONS -->
+  <section id="questions">
+    <div class="wrap">
+      <p class="kicker">The whole product, in plain terms</p>
+      <h2>When a program connects, we answer three questions.</h2>
+      <p class="lede">Not a person anymore — that’s the shift. The visitor is often an AI agent booking, buying, comparing prices, or pulling data for someone. Today you can’t tell a customer’s helpful agent from a scraper, a fraud bot, or a broken agent stuck in a loop. So we check:</p>
+      <div class="questions">
+        <div class="qrow">
+          <div class="qnum">01</div>
+          <h3>What is it, really?</h3>
+          <p>We fingerprint the actual client — TLS (<code>JA3/JA4</code>), HTTP/2 settings, header order, Client Hints, and SDK signatures like <code>x-stainless-lang</code>. A Python <code>httpx</code> script claiming to be Chrome doesn’t look like Chrome. We can tell.</p>
+        </div>
+        <div class="qrow">
+          <div class="qnum">02</div>
+          <h3>Is it who it claims to be? <span class="mono" style="font-size:11px;letter-spacing:.08em;background:var(--amber-bg);color:var(--amber);border:1px solid currentColor;border-radius:999px;padding:3px 8px;vertical-align:middle">V2 ROADMAP</span></h3>
+          <p>Agents increasingly arrive with a name tag: Web Bot Auth and RFC 9421 HTTP message signatures. The v2 plan: verify the signature, then check whether the detected stack matches the claim. Claimed identity, proven — or flagged as a lie.</p>
+        </div>
+        <div class="qrow">
+          <div class="qnum">03</div>
+          <h3>Is it behaving itself? <span class="mono" style="font-size:11px;letter-spacing:.08em;background:var(--amber-bg);color:var(--amber);border:1px solid currentColor;border-radius:999px;padding:3px 8px;vertical-align:middle">V2 ROADMAP</span></h3>
+          <p>Same fingerprint, seen across requests, becomes a stable identity — the persistence layer on the v2 roadmap. That unlocks cadence, endpoint sequences, per-agent budgets, and loop detection — the agent making the same call 10,000 times gets stopped before the bill does the talking.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EVIDENCE -->
+  <section id="evidence">
+    <div class="wrap">
+      <p class="kicker">Evidence, not vibes</p>
+      <h2>One fingerprint document. Every signal, on the record.</h2>
+      <p class="lede">plzbot started as an open fingerprinting engine that returns evidence, not a black-box bot-or-not score. That fingerprinting core exists today. The identity, behavior, and verdict layers below are the v2 build now in development — and the design goal is that you see exactly why a visitor was allowed, throttled, or blocked, so your auditors can too.</p>
+      <div class="evidence-grid">
+        <div class="signal-list">
+          <div class="signal"><span class="tag">TLS</span><div><h4>JA3 &amp; JA4 from the real ClientHello</h4><p>Captured where TLS terminates, not guessed from headers. Works for browsers and for raw SDK clients — most agent traffic never opens a browser at all.</p></div></div>
+          <div class="signal"><span class="tag">HTTP</span><div><h4>Header order, HTTP/2 &amp; Client Hints</h4><p>The order headers arrive in, the SETTINGS frame a client sends, the hints it offers. Hard to fake consistently, easy to match against a known stack.</p></div></div>
+          <div class="signal"><span class="tag">SDK</span><div><h4>Agent-stack corpus — v2 roadmap, step one</h4><p>The first v2 build task: record known fingerprints for CPython ssl &amp; httpx, Go net/http &amp; uTLS, Node undici, Rust reqwest — plus OpenAI / Anthropic Stainless headers that name the exact library and version.</p></div></div>
+          <div class="signal"><span class="tag">ID</span><div><h4>Declared identity, verified — v2 roadmap</h4><p>Web Bot Auth signature checks, rarity scoring, and a stable client identity derived from the fingerprint plus any presented token. The schema already has slots for these; v2 fills them in.</p></div></div>
+          <div class="signal"><span class="tag">WEB</span><div><h4>Browser signals, when there is a browser</h4><p>Canvas, WebGL, fonts, audio, and automation indicators for the agent traffic that does drive a real browser.</p></div></div>
+        </div>
+        <div>
+          <div class="codecard">
+            <div class="code-head">
+              <span class="file">fingerprint.json — example document</span>
+              <button class="copy-btn" type="button" id="copyJson">Copy JSON</button>
+            </div>
+            <pre id="jsonBlock"><span class="c">// evidence, not a verdict</span>
+{
+  <span class="k">"client"</span>: {
+    <span class="k">"claimed"</span>: <span class="s">"shop-assistant/2.1"</span>,
+    <span class="k">"detected_stack"</span>: <span class="s">"node-undici / stainless"</span>,
+    <span class="k">"sdk"</span>: { <span class="k">"lang"</span>: <span class="s">"js"</span>, <span class="k">"pkg"</span>: <span class="s">"openai"</span>, <span class="k">"ver"</span>: <span class="s">"4.72.0"</span> }
+  },
+  <span class="k">"tls"</span>: { <span class="k">"ja4"</span>: <span class="s">"t13d1516h2_8daaf6152771…"</span> },
+  <span class="k">"identity"</span>: {
+    <span class="k">"web_bot_auth"</span>: <span class="s">"verified"</span>, <span class="c">// planned v2 field</span>
+    <span class="k">"stable_id"</span>: <span class="s">"agt_9f31c…"</span>,
+    <span class="k">"seen_before"</span>: <span class="n">true</span>, <span class="k">"requests_24h"</span>: <span class="n">1,204</span>
+  },
+  <span class="k">"behavior"</span>: { <span class="k">"loop_score"</span>: <span class="n">0.03</span>, <span class="k">"rarity"</span>: <span class="n">0.12</span> }
+}</pre>
+            <div class="code-note"><b>Policy lives outside the evidence.</b> plzbot stays pure; your rules — allow, throttle, challenge, deny — sit in a separate layer and consume a signed verdict JWT.</div>
+          </div>
+          <p style="font-size:13.5px;color:var(--muted);margin:12px 2px 0">One honest constraint, by design: JA3/JA4 only exist where plzbot terminates TLS itself. Behind a TLS-terminating platform, those signals go dark — so the agent version sits at the TLS endpoint, as a proxy or at your edge.</p>
+        </div>
+      </div>
+
+      <div class="policy" aria-label="What you can do with a verdict">
+        <div class="pol"><div class="verb"><i style="background:var(--green-bright)"></i>Allow</div><p>Verified agent, known stack, normal behavior. Let it work — it’s your customer’s agent, doing what your customer asked.</p><p class="when">WHEN · signature ✓ · stack matches claim · loop score low</p></div>
+        <div class="pol"><div class="verb"><i style="background:var(--amber)"></i>Throttle</div><p>Real client, no proven identity — or just moving too fast. Give it a per-agent budget instead of a ban.</p><p class="when">WHEN · unsigned · unknown SDK · cadence above budget</p></div>
+        <div class="pol"><div class="verb"><i style="background:#f97316"></i>Challenge</div><p>Claim and evidence disagree. Ask it to prove itself — sign the request, slow down, or identify its operator.</p><p class="when">WHEN · claims Chrome, fingerprints as Python</p></div>
+        <div class="pol"><div class="verb"><i style="background:var(--red)"></i>Block</div><p>Forged signature, known scraper stack, or a loop burning compute. Out — with the evidence attached to the log line.</p><p class="when">WHEN · bad signature · loop_score &gt; 0.9 · blocklisted stack</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHAT YOU PAY FOR -->
+  <section id="why">
+    <div class="wrap">
+      <p class="kicker">Why teams pay</p>
+      <h2>Nobody pays for fingerprints. They pay for these four things.</h2>
+      <div class="pay-grid">
+        <div class="pay-row">
+          <h3>1. Seeing their traffic, <em>finally</em></h3>
+          <div><p>Most companies honestly don’t know how much of their traffic is machines, or which machines. The first thing they buy is a clear picture: what is hitting us, how often, from where, doing what.</p><p class="stat">→ Live breakdown: humans / verified agents / unknown / hostile</p></div>
+        </div>
+        <div class="pay-row">
+          <h3>2. Stopping the <em>expensive</em> problems</h3>
+          <div><p>A runaway agent loop can burn a fortune in API and compute costs. Scrapers take data competitors then use against you. Fraud bots create fake accounts and fake orders. We stop those losses — without accidentally blocking the good agents your real customers sent.</p><p class="stat">→ Per-agent budgets, kill switches, loop detection</p></div>
+        </div>
+        <div class="pay-row">
+          <h3>3. Proof, when someone asks</h3>
+          <div><p>Big customers answer to security reviews, auditors, and sometimes regulators. They pay for the record: this agent, acting for this person, accessed this data at this time, and we verified it. If something goes wrong, that paper trail is the product.</p><p class="stat">→ Signed, exportable evidence for every decision</p></div>
+        </div>
+        <div class="pay-row">
+          <h3>4. Not building it themselves</h3>
+          <div><p>Telling one program from another is a moving target — agent software changes every month and fingerprint corpora rot. A monthly bill beats hiring a team to chase it. Keeping up is our job, not yours.</p><p class="stat">→ Corpus &amp; SDK signatures updated as stacks ship</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS + FIT -->
+  <section id="how">
+    <div class="wrap">
+      <p class="kicker">How it works</p>
+      <h2>How v2 will work: at your door in an afternoon, not a quarter.</h2>
+      <div class="steps">
+        <div class="step"><div class="n">STEP 01</div><h3>Put plzbot at the door</h3><p>Run the planned proxy mode in front of your API or MCP server, at the TLS endpoint. Traffic passes through; plzbot fingerprints every client on the way in.</p></div>
+        <div class="step"><div class="n">STEP 02</div><h3>Every knock gets checked</h3><p>We collect the evidence, verify any claimed identity, match the stack against the corpus, and score behavior against the stable identity we’ve seen before.</p></div>
+        <div class="step"><div class="n">STEP 03</div><h3>Your app just reads a header</h3><p>The fingerprint and verdict ride along as headers — or a signed JWT — to your upstream. Your policy decides: <code>allow</code>, <code>throttle</code>, <code>challenge</code>, <code>deny</code>.</p></div>
+      </div>
+
+      <div class="codecard" style="margin-top:20px">
+        <div class="code-head"><span class="file">what your upstream will receive — target design</span><button class="copy-btn" type="button" id="copyHeaders">Copy headers</button></div>
+        <pre id="headersBlock"><span class="c"># injected by plzbot.me, signed — your app verifies, then enforces</span>
+<span class="p">X-Plzbot-Identity:</span>  agt_9f31c…  <span class="c"># stable agent identity</span>
+<span class="p">X-Plzbot-Stack:</span>     node-undici/stainless (openai 4.72.0)
+<span class="p">X-Plzbot-Verified:</span>  web-bot-auth ✓ · claim matches stack ✓
+<span class="p">X-Plzbot-Verdict:</span>   <span class="s">allow</span>  <span class="c"># allow | throttle | challenge | deny</span>
+<span class="p">X-Plzbot-Evidence:</span>  eyJhbGciOi…  <span class="c"># signed JWT, full fingerprint inside</span></pre>
+      </div>
+
+      <div class="fit-grid">
+        <div class="fit yes">
+          <h3>Built for you if…</h3>
+          <ul>
+            <li>You run a public API or MCP server and agent traffic is already real</li>
+            <li>You’re big enough to feel scrapers, loops, and fake signups — too small to get an enterprise vendor’s attention</li>
+            <li>You want self-serve: sign up, drop in the proxy, see your traffic today</li>
+            <li>You need the audit trail without building a detection team</li>
+          </ul>
+        </div>
+        <div class="fit no">
+          <h3>Honestly, not for you if…</h3>
+          <ul>
+            <li>You need edge bot management across a global CDN — that’s Cloudflare &amp; Akamai’s game, and they own the data scale for it</li>
+            <li>Your traffic is purely human and browser-based</li>
+            <li>You want a black-box score with no evidence behind it</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRICING -->
+  <section id="pricing">
+    <div class="wrap">
+      <p class="kicker">Pricing</p>
+      <h2>Simple, traffic-based. Like a bouncer, not a law firm.</h2>
+      <p class="lede">A monthly subscription scaled to how much traffic we check. The free tier will exist so you can look at your own traffic first — expect surprises; most APIs have no idea how much of their traffic is already machines.</p>
+      <div class="pricing">
+        <div class="price-card">
+          <div class="tier">Look</div>
+          <div class="price">$0<small> / mo</small></div>
+          <p class="for">See who’s knocking. No enforcement.</p>
+          <ul><li>Fingerprint documents for every request</li><li>Traffic breakdown dashboard</li><li>Agent-stack identification</li><li>Up to 50k checks / month</li><li>Community support</li></ul>
+          <a class="btn btn-ghost" href="#waitlist">Start looking</a>
+        </div>
+        <div class="price-card featured">
+          <div class="tier">Bouncer · Recommended</div>
+          <div class="price">$200<small> / mo</small></div>
+          <p class="for">Check IDs and act on the verdict.</p>
+          <ul><li>Everything in Look</li><li>Web Bot Auth verification</li><li>Allow / throttle / challenge / deny policies</li><li>Per-agent budgets &amp; loop detection</li><li>Signed verdict JWTs for your gateway</li><li>Up to 1M checks / month, then per-call</li></ul>
+          <a class="btn" href="#waitlist">Join the waitlist</a>
+        </div>
+        <div class="price-card">
+          <div class="tier">Door team</div>
+          <div class="price">Custom</div>
+          <p class="for">High volume, audits, and paperwork.</p>
+          <ul><li>Everything in Bouncer</li><li>Exportable audit evidence &amp; retention</li><li>Security-review support</li><li>Custom corpus entries for your ecosystem</li><li>Entity contracting &amp; DPA</li></ul>
+          <a class="btn btn-ghost" href="#waitlist">Join the waitlist</a>
+        </div>
+      </div>
+      <p class="pricing-note">Planned launch pricing, shown for the waitlist — nothing is for sale yet, and no card is taken. Rates may change before launch.</p>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq">
+    <div class="wrap">
+      <p class="kicker">Questions</p>
+      <h2>Asked at every door.</h2>
+      <div class="faq">
+        <details>
+          <summary>Isn’t this what Cloudflare and DataDome do?</summary>
+          <div class="ans"><p>At the top of the market, yes — edge bot management and enterprise agent-trust suites, sold through sales teams on annual contracts. plzbot.me lives one layer down: a developer-first fingerprinting and identity API, self-serve, aimed at the API and MCP operators those vendors don’t call back. Same problem, different door.</p></div>
+        </details>
+        <details>
+          <summary>My agents are just SDK clients, not browsers. Does this still work?</summary>
+          <div class="ans"><p>That’s the main case. The server half fingerprints any HTTP client — <code>curl</code> and <code>requests</code> get full documents today. TLS, HTTP/2, header order, and Stainless SDK headers identify Python, Go, Node, and Rust stacks without a browser ever being involved. Browser signals (canvas, WebGL, fonts, audio) are the bonus layer, not the foundation.</p></div>
+        </details>
+        <details>
+          <summary>What is Web Bot Auth, and why does verification matter?</summary>
+          <div class="ans"><p>It’s how an agent proves who it is: the operator signs requests (RFC 9421 HTTP message signatures) with a key tied to its identity. A claim anyone can type into a User-Agent is worthless. A valid signature that also matches the detected stack is an ID check. plzbot verifies both halves — the signature, and whether the client in front of us matches the name on the tag.</p></div>
+        </details>
+        <details>
+          <summary>Where does plzbot have to sit in my stack?</summary>
+          <div class="ans"><p>At the TLS endpoint. JA3/JA4 come from the TLS ClientHello, so if a platform terminates TLS before plzbot sees the connection, those signals go dark. In practice: proxy mode in front of your API or MCP server, or at your own edge. Your app then consumes headers or a signed JWT — policy stays in your layer.</p></div>
+        </details>
+        <details>
+          <summary>Do you store my traffic?</summary>
+          <div class="ans"><p>We store fingerprint documents and the stable identities derived from them — that persistence is what makes recognition, budgets, and loop detection possible. We don’t need your payloads to fingerprint a client, and the evidence record for each decision is exportable to you for audits.</p></div>
+        </details>
+        <details>
+          <summary>Can I just start getting customers before any of this is “official”?</summary>
+          <div class="ans"><p>That’s exactly the plan — this page is step one. plzbot.me is in development: the waitlist comes first, paid pilots second, polish third. If you run an API or MCP server and want to be one of the first doors we stand at, join below.</p></div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <div class="wrap">
+    <div class="final" id="waitlist">
+      <h2>Your agents are already knocking.<br><span class="hl">Check their ID.</span></h2>
+      <p>Join the waitlist. Draft your invite request below — what you run, an API, an MCP server, or both — and save it as a file you can send the moment invites open.</p>
+      <form class="waitlist" id="waitlistForm" novalidate>
+        <label class="mono" for="wlEmail" style="position:absolute;left:-9999px">Work email</label>
+        <input id="wlEmail" type="email" name="email" placeholder="you@yourapi.com" autocomplete="email" required />
+        <button class="btn btn-lime" type="submit">Download my invite request ↓</button>
+      </form>
+      <p class="form-msg" id="formMsg" role="status"></p>
+      <p style="font-size:13px;margin-top:18px">Honest mechanics: plzbot.me is still in development and this page has no server, so nothing is sent or stored when you download — the file is yours to keep and send when invites open.</p>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <div>
+      <a class="brand" href="#top" style="font-size:18px"><span class="brand-badge">plz</span><span>plzbot<span class="dotme" style="color:var(--green)">.me</span></span></a>
+      <p>“Please, bot me.” Said by the agent knocking — and by every API owner who wants agent traffic through the front door, with ID checked first.</p>
+      <p class="mono" style="font-size:12px">Evidence, not vibes. · plzbot.me</p>
+    </div>
+    <nav class="foot-links" aria-label="Footer">
+      <a href="#questions">What it checks</a>
+      <a href="#evidence">Evidence</a>
+      <a href="#how">How it works</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+      </nav>
+  </div>
+</footer>
+
+<div class="toast" id="toast" role="status">Copied</div>
+
+<script>
+(function(){
+  var visitors = {
+    good: {
+      endpoint: "POST /v1/tools/search · example",
+      verdict: "✓ ALLOW", vclass: "allow", avatar: "🤖",
+      title: "A shopping agent, acting for a real customer",
+      sub: 'Claims: <span class="mono">agent: shop-assistant/2.1</span> · Signed with Web Bot Auth',
+      checks: [
+        ["ok","✓","<b>Identity verified.</b> <span>Web Bot Auth signature checks out — a planned v2 check, shown here as the target experience.</span>"],
+        ["ok","✓","<b>Stack matches the claim.</b> <span>Node undici + Stainless headers (openai 4.72.0), JA4 consistent.</span>"],
+        ["ok","✓","<b>Behaving (in this example).</b> <span>Steady cadence, no repeated calls, loop score 0.03.</span>"]
+      ]
+    },
+    sdk: {
+      endpoint: "GET /api/v2/products · example",
+      verdict: "◐ THROTTLE", vclass: "throttle", avatar: "🧰",
+      title: "An unknown SDK client, no name tag",
+      sub: 'Claims: <span class="mono">User-Agent: python-requests/2.32</span> · Unsigned',
+      checks: [
+        ["warn","!","<b>No declared identity.</b> <span>Nothing to verify — anyone could send this.</span>"],
+        ["ok","✓","<b>Stack identified anyway.</b> <span>CPython ssl + httpx fingerprint, header order matches.</span>"],
+        ["warn","!","<b>Moving fast.</b> <span>Above the anonymous budget — throttled to 60 req/min until it identifies itself.</span>"]
+      ]
+    },
+    scraper: {
+      endpoint: "GET /api/v2/pricing?all=true · example",
+      verdict: "✕ BLOCK", vclass: "block", avatar: "🕷️",
+      title: "A price scraper wearing a Chrome costume",
+      sub: 'Claims: <span class="mono">User-Agent: Chrome/131</span> · Signature: forged',
+      checks: [
+        ["bad","✕","<b>Signature doesn’t check out.</b> <span>The name tag is fake.</span>"],
+        ["bad","✕","<b>Stack contradicts the claim.</b> <span>JA4 + HTTP/2 SETTINGS say Go uTLS, not Chrome. No canvas, no WebGL — there is no browser.</span>"],
+        ["warn","!","<b>Pattern matches known scrapers.</b> <span>Full-catalog sweep, sequential IDs, rarity score 0.94.</span>"]
+      ]
+    },
+    loop: {
+      endpoint: "POST /mcp/tools/call · 10,412th time today",
+      verdict: "✕ BLOCK", vclass: "block", avatar: "🔁",
+      title: "A good agent, stuck in a very expensive loop",
+      sub: 'Claims: <span class="mono">agent: research-helper/1.4</span> · Signed with Web Bot Auth',
+      checks: [
+        ["ok","✓","<b>Identity verified.</b> <span>It really is who it claims to be — that’s not the problem.</span>"],
+        ["bad","✕","<b>Loop detected.</b> <span>Same tool call, same arguments, every 800ms for 3 hours. Loop score 0.97.</span>"],
+        ["bad","✕","<b>Budget blown.</b> <span>Per-agent budget exhausted. Killed at the door, operator notified — before the compute bill did the talking.</span>"]
+      ]
+    }
+  };
+  var order = ["good","sdk","scraper","loop"];
+  var current = "good";
+  var titleEl = document.getElementById("doorTitle"),
+      subEl = document.getElementById("doorSub"),
+      verdictEl = document.getElementById("doorVerdict"),
+      endpointEl = document.getElementById("doorEndpoint"),
+      avatarEl = document.getElementById("doorAvatar"),
+      checksEl = document.getElementById("doorChecks"),
+      chips = Array.prototype.slice.call(document.querySelectorAll(".chip-btn"));
+
+  function render(key){
+    current = key;
+    var v = visitors[key];
+    endpointEl.textContent = v.endpoint;
+    verdictEl.textContent = v.verdict;
+    verdictEl.className = "verdict " + v.vclass;
+    avatarEl.textContent = v.avatar;
+    titleEl.textContent = v.title;
+    subEl.innerHTML = v.sub;
+    checksEl.innerHTML = v.checks.map(function(c){
+      return '<div class="check"><span class="ic ' + c[0] + '">' + c[1] + '</span><div>' + c[2] + '</div></div>';
+    }).join("");
+    chips.forEach(function(ch){ ch.setAttribute("aria-pressed", ch.getAttribute("data-visitor") === key ? "true" : "false"); });
+  }
+  chips.forEach(function(ch){
+    ch.addEventListener("click", function(){ render(ch.getAttribute("data-visitor")); });
+  });
+  document.getElementById("knockBtn").addEventListener("click", function(){
+    var next = order[(order.indexOf(current) + 1) % order.length];
+    render(next);
+  });
+  render("good");
+
+  // ticker: duplicate track content for a seamless loop
+  var track = document.getElementById("tickerTrack");
+  track.innerHTML += track.innerHTML;
+
+  // copy helpers
+  var toast = document.getElementById("toast"), toastTimer = null;
+  function showToast(msg){
+    toast.textContent = msg;
+    toast.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toast.classList.remove("show"); }, 2200);
+  }
+  function copyText(text, msg){
+    function done(){ showToast(msg); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function(){ fallback(); });
+    } else { fallback(); }
+    function fallback(){
+      var ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); done(); } catch(e){ showToast("Copy failed — select the text manually"); }
+      document.body.removeChild(ta);
+    }
+  }
+  document.getElementById("copyJson").addEventListener("click", function(){
+    copyText(document.getElementById("jsonBlock").innerText, "Fingerprint JSON copied");
+  });
+  document.getElementById("copyHeaders").addEventListener("click", function(){
+    copyText(document.getElementById("headersBlock").innerText, "Verdict headers copied");
+  });
+
+  // waitlist: no backend on a static page — generate a downloadable request file
+  document.getElementById("waitlistForm").addEventListener("submit", function(e){
+    e.preventDefault();
+    var email = document.getElementById("wlEmail").value.trim();
+    var msg = document.getElementById("formMsg");
+    if (!email || email.indexOf("@") < 1 || email.indexOf(".") < 0) {
+      msg.textContent = "That email doesn’t look complete — check it and try again.";
+      return;
+    }
+    var text = "plzbot.me — waitlist invite request\n\nEmail: " + email + "\nWhat I run: [ API / MCP server / both — edit me ]\nRough monthly request volume: [ edit me ]\n\nplzbot.me is in development. Keep this file and send it when invites open.";
+    var blob = new Blob([text], { type: "text/plain" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = "plzbot-me-invite-request.txt";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+    msg.textContent = "Saved to your device as plzbot-me-invite-request.txt — nothing was sent or stored by this page.";
+    showToast("Invite request downloaded");
+  });
+})();
+</script>
+</body>
+</html>
