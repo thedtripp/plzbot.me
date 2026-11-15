@@ -193,7 +193,7 @@ function renderObservationTable(observations) {
     const hasInfo = Boolean(catalog[o.id]);
     const row = el("tr", { class: `obs-row ${hasInfo ? "has-info" : ""}` }, [
       el("td", { class: "id", text: o.id }),
-      el("td", {}, [el("span", { class: `pill ${o.status}`, text: o.status })]),
+      el("td", { class: "status" }, [el("span", { class: `pill ${o.status}`, text: o.status })]),
       el("td", { class: "value" }, [
         el("span", { text: formatValue(o.raw) }),
         o.normalized !== undefined && JSON.stringify(o.normalized) !== JSON.stringify(o.raw)
@@ -212,7 +212,7 @@ function renderObservationTable(observations) {
       infoRow.style.display = "none";
       tbody.appendChild(infoRow);
       row.addEventListener("click", () => {
-        infoRow.style.display = infoRow.style.display === "none" ? "table-row" : "none";
+        infoRow.style.display = infoRow.style.display === "none" ? "" : "none";
       });
     }
   }
@@ -257,7 +257,7 @@ function renderDerived(fp) {
     tbody.appendChild(
       el("tr", {}, [
         el("td", { class: "id", text: d.id }),
-        el("td", {}, [el("span", { class: `pill ${d.status === "computed" ? "observed" : d.status}`, text: d.status })]),
+        el("td", { class: "status" }, [el("span", { class: `pill ${d.status === "computed" ? "observed" : d.status}`, text: d.status })]),
         el("td", { class: "value", text: formatValue(d.value) }),
         el("td", { class: "method", text: d.method }),
       ]),
