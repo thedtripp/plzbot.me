@@ -77,13 +77,6 @@ export const SIGNAL_CATALOG: Record<string, CatalogEntry> = {
       { title: "FoxIO JA4 specification", url: "https://github.com/FoxIO-LLC/ja4/blob/main/technical_details/JA4.md" },
     ],
   },
-  "http.header_order": {
-    title: "HTTP header order",
-    description: "The order in which the client sent its request headers, preserved from the raw wire bytes.",
-    whyItMatters:
-      "Different HTTP client libraries and browser versions order headers differently and fairly consistently; combined with the header *set* itself, order is a lightweight extra signal for distinguishing client implementations.",
-    caveats: "Only available for HTTP/1.1 in this app's current implementation — see docs/ARCHITECTURE.md.",
-  },
   "browser.automation.navigator_webdriver": {
     title: "navigator.webdriver",
     description:
@@ -135,5 +128,136 @@ export const SIGNAL_CATALOG: Record<string, CatalogEntry> = {
     caveats:
       "Entirely client-suppliable when there is no trusted proxy in front of the app — any client can send an arbitrary value. This app never trusts it to override the directly-observed TCP peer address.",
     references: [{ title: "MDN: X-Forwarded-For", url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-For" }],
+  },
+
+  "derived.client_signature": {
+    title: "Client signature (self-identified)",
+    description:
+      "The User-Agent matched against a curated table of tokens that AI agents, crawlers, HTTP libraries, CLI tools and headless browsers use to identify themselves (OpenAI's GPTBot/ChatGPT-User, Anthropic's ClaudeBot/Claude-User, Perplexity, Googlebot, python-requests, Go-http-client, curl, HeadlessChrome, …).",
+    whyItMatters:
+      "Most legitimate automated clients announce themselves, and their operators document the token and often the IP ranges it comes from. For a site operator this is the cheapest first-pass classification of automated traffic; for an agent developer it shows exactly what your tool is telling every site it visits.",
+    caveats:
+      "Entirely self-reported. Any client can send any token, and a client that sends none tells you nothing. Browser-driving agents (Operator-style, computer-use, 'Claude in Chrome') run a real browser and typically carry a normal browser User-Agent — they do not appear here.",
+    references: [
+      { title: "OpenAI: Overview of OpenAI crawlers", url: "https://platform.openai.com/docs/bots" },
+      { title: "Anthropic: web crawler documentation", url: "https://support.anthropic.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler" },
+    ],
+  },
+  "network.client_ip": {
+    title: "Client IP (deployment's best notion)",
+    description:
+      "The address this deployment treats as the client. Equal to the TCP peer unless a trusted reverse proxy is configured, in which case it comes from X-Forwarded-For or a platform header — the collection method says which.",
+    whyItMatters: "The IP is the oldest network-level identifier and the key for rate limits, reputation lists and ASN/geo lookups.",
+    caveats: "Behind a proxy the TCP peer is the proxy; trusting forwarded headers from anyone else lets clients choose their own 'IP'.",
+  },
+  "network.client_ip_class": {
+    title: "IP address class",
+    description: "Structural classification of the client address against the IANA special-purpose registries: loopback, private (RFC 1918), link-local, shared/CGNAT (RFC 6598), unique-local, documentation, or public; plus IPv4-mapped and transition-address notes.",
+    whyItMatters: "Tells you whether the address can be meaningfully looked up or rate-limited at all. A CGNAT address, for instance, is shared by many subscribers.",
+    references: [{ title: "RFC 6890: Special-Purpose IP Address Registries", url: "https://www.rfc-editor.org/rfc/rfc6890" }],
+  },
+  "network.asn": {
+    title: "Autonomous System (network owner)",
+    description: "The AS number, registration country and organisation name that announce the client's IP range, from an offline copy of the public-domain iptoasn.com table (when configured).",
+    whyItMatters:
+      "Whether traffic comes from a residential ISP, a mobile carrier, a hosting/cloud provider or a VPN exit is one of the strongest coarse signals bot-detection systems use — most scripted traffic originates in data-center ASNs.",
+    caveats: "The country is where the AS is registered, not where the user is. No geolocation database is used by this project.",
+    references: [{ title: "iptoasn.com", url: "https://iptoasn.com/" }],
+  },
+  "network.reverse_dns": {
+    title: "Reverse DNS (PTR)",
+    description: "The hostname(s) the owner of the client IP published for it in reverse DNS.",
+    whyItMatters: "Cloud providers, ISPs and crawler operators follow recognizable naming conventions (e.g. crawl-66-249-66-1.googlebot.com), and verified crawlers are confirmed by forward-confirming the PTR name.",
+    caveats: "Controlled by whoever owns the address block; absent for most residential and many cloud addresses; only the forward-confirmed form is trustworthy.",
+  },
+  "http.header_order": {
+    title: "HTTP header order",
+    description: "The names of the request headers in the exact order they were sent (HEADERS-frame order for HTTP/2).",
+    whyItMatters:
+      "Each HTTP stack emits headers in its own fixed order. Chrome, Firefox, Safari, curl, Go and Python all differ, and a script that copies a browser's header *values* rarely reproduces the *order* — which is why header order features in most commercial bot-detection products.",
+    caveats: "Proxies and CDNs frequently re-serialize requests and change the order; behind one, this reflects the proxy's stack.",
+  },
+  "http.header_casing": {
+    title: "HTTP/1.1 header-name casing",
+    description: "Whether header names were sent Title-Cased, all-lowercase, or mixed. HTTP/2 mandates lowercase, so this exists only for HTTP/1.x.",
+    whyItMatters: "Another cheap stack tell: browsers Title-Case on HTTP/1.1, a few libraries and most h2-to-h1 proxies lowercase.",
+  },
+  "http.accept_encoding_tokens": {
+    title: "Accept-Encoding tokens",
+    description: "The compression algorithms the client says it can decode.",
+    whyItMatters: "`br` (Brotli) and especially `zstd` are advertised by current browsers but not by most HTTP libraries' defaults; the exact set and order is a stack signature.",
+  },
+  "http.fetch_metadata_present": {
+    title: "Fetch Metadata headers present",
+    description: "Whether any Sec-Fetch-Site / Mode / User / Dest headers were sent.",
+    whyItMatters: "Browsers attach these automatically to every request and non-browser clients almost never do, making them one of the simplest browser-vs-script separators available server-side.",
+    references: [{ title: "W3C Fetch Metadata Request Headers", url: "https://www.w3.org/TR/fetch-metadata/" }],
+  },
+  "http.headers.priority": {
+    title: "Priority header (RFC 9218)",
+    description: "The extensible-priorities request header (`u=` urgency, `i` incremental).",
+    whyItMatters: "Sent by Chromium and Firefox on navigations; absent from scripts unless deliberately added.",
+    references: [{ title: "RFC 9218: Extensible Prioritization Scheme for HTTP", url: "https://www.rfc-editor.org/rfc/rfc9218" }],
+  },
+  "http2.settings": {
+    title: "HTTP/2 SETTINGS values",
+    description: "The connection-level parameters the client announced in its SETTINGS frame (header table size, push, concurrent streams, initial window, max frame size, max header list size).",
+    whyItMatters:
+      "These come from the client's HTTP/2 library, not from per-request code, and the default values differ between Chrome, Firefox, Safari, Go, curl/nghttp2 and others — the basis of Akamai's HTTP/2 fingerprinting.",
+    caveats: "Node exposes the values but not the order of settings within the frame, nor WINDOW_UPDATE increments, so the Akamai fingerprint can only be partially reproduced here.",
+    references: [{ title: "Akamai: Passive Fingerprinting of HTTP/2 Clients", url: "https://www.blackhat.com/docs/eu-17/materials/eu-17-Shuster-Passive-Fingerprinting-Of-HTTP2-Clients-wp.pdf" }],
+  },
+  "http2.pseudo_header_order": {
+    title: "HTTP/2 pseudo-header order",
+    description: "The order of :method, :authority, :scheme and :path in the HEADERS frame, abbreviated m/a/s/p.",
+    whyItMatters: "Chromium sends m,a,s,p; Firefox m,p,a,s; Safari m,s,p,a; Go's net/http m,p,a,s — fixed per implementation and almost never spoofed by header-copying scripts.",
+  },
+  "http2.fingerprint_partial": {
+    title: "Akamai-style HTTP/2 fingerprint (partial)",
+    description: "SETTINGS | WINDOW_UPDATE | PRIORITY | pseudo-header-order, in the format Akamai popularized. Components Node cannot expose are written as '?' rather than guessed.",
+    whyItMatters: "A compact string that separates browser families and h2 libraries even when HTTP headers are perfectly spoofed.",
+    caveats: "Partial: settings order and WINDOW_UPDATE are unavailable through Node's http2 module.",
+  },
+  "tls.clienthello.grease": {
+    title: "GREASE values in the ClientHello",
+    description: "Reserved placeholder values (RFC 8701) that some TLS stacks sprinkle into their cipher, extension, group and version lists to keep servers tolerant of unknown values.",
+    whyItMatters: "Chromium (BoringSSL) has sent GREASE since 2016 and Firefox since 2021; OpenSSL-based clients (Python, curl by default, Node) and Go do not. Presence or absence therefore says a lot about the TLS library regardless of the User-Agent.",
+    references: [{ title: "RFC 8701: GREASE", url: "https://www.rfc-editor.org/rfc/rfc8701" }],
+  },
+  "tls.clienthello.extensions": {
+    title: "TLS extensions offered",
+    description: "The extension types in the ClientHello, in wire order, with IANA names.",
+    whyItMatters: "The set of extensions (and for some stacks their order) is the most library-specific part of the handshake. Chrome randomizes extension order since v110 specifically to defeat naive JA3 matching — JA4 sorts them for that reason.",
+    references: [{ title: "IANA TLS ExtensionType Values", url: "https://www.iana.org/assignments/tls-extensiontype-values/" }],
+  },
+  "tls.clienthello.key_share_groups": {
+    title: "key_share groups",
+    description: "The key-exchange groups the client pre-generated key shares for (TLS 1.3).",
+    whyItMatters: "Chrome and Firefox now send a post-quantum hybrid (X25519MLKEM768) share first; most libraries still send only x25519 or secp256r1. Hard to fake without the right library.",
+  },
+  "tls.clienthello.supported_versions": {
+    title: "supported_versions",
+    description: "The TLS versions the client is willing to negotiate (TLS 1.3's replacement for the legacy_version field).",
+    whyItMatters: "Every modern browser offers TLS 1.3 first; its absence indicates an older or minimal stack.",
+  },
+  "tls.clienthello.ech_present": {
+    title: "Encrypted Client Hello extension present",
+    description: "Whether the client attached an encrypted_client_hello extension (even a GREASE one).",
+    whyItMatters: "Chrome and Firefox send a GREASE ECH extension on every connection; almost no library does yet.",
+  },
+  "tls.clienthello.alps_present": {
+    title: "ALPS extension present",
+    description: "Application-Layer Protocol Settings, a Chromium-specific extension carrying h2 settings in the handshake.",
+    whyItMatters: "Currently a near-unique Chromium marker.",
+  },
+  "tls.clienthello.raw_hex": {
+    title: "Raw ClientHello bytes",
+    description: "The exact bytes of the TLS record containing the ClientHello, as hex.",
+    whyItMatters: "Lets you verify every parsed field above against the wire, or feed the handshake into another JA3/JA4 implementation.",
+  },
+  "tls.session_reused": {
+    title: "TLS session resumed",
+    description: "Whether this connection resumed a previous TLS session (session ticket / PSK) instead of doing a full handshake.",
+    whyItMatters: "Resumption behaviour differs between stacks, and resumed handshakes carry a pre_shared_key extension that changes JA3/JA4.",
   },
 };
