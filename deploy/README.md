@@ -60,6 +60,52 @@ Any always-free VM works: **Oracle Cloud Always Free** (`VM.Standard.A1.Flex`, u
 
 `deploy/oci-create-vm.sh` scripts step 1 for Oracle Cloud with the `oci` CLI.
 
+### Redeploying after a change
+
+The app, including `public/` (HTML, CSS, JS), is baked into the Docker image, so every change
+ships the same way: pull, rebuild, recreate. On the VM, from the repo folder:
+
+```sh
+git pull --ff-only
+docker compose build plzbot
+docker compose up -d
+docker compose ps        # plzbot should report "healthy" within ~15 s
+curl -sI https://<your hostname>/ | head -1
+```
+
+- Only the `plzbot` container is recreated. Certificates live in a volume and renewal keeps
+  running, so the only downtime is the few seconds the container restarts.
+- A host-specific `docker-compose.override.yml` (see below) is untracked, so `git pull` leaves it alone.
+- The first build on a 1 GB VM takes a couple of minutes and needs swap (2 GB is plenty).
+- **Roll back:** `git checkout <previous-commit>`, then `docker compose build plzbot && docker compose up -d`.
+  Run `git checkout main` before the next `git pull`.
+- From a laptop with the Google Cloud CLI, the same thing in one line:
+  `gcloud compute ssh <vm> --zone <zone> --project <project> --command 'cd ~/plzbot.me && git pull --ff-only && docker compose build plzbot && docker compose up -d'`
+
+### Host-specific compose settings (`docker-compose.override.yml`)
+
+Anything specific to one machine goes in `docker-compose.override.yml`, which is git-ignored.
+The one you are most likely to need: **if something else already listens on :443 on the VM**,
+Docker fails with `failed to bind host port 0.0.0.0:443/tcp: address already in use`. Tailscale
+does this when it serves a page with `tailscale serve` (it binds :443 on the VM's Tailscale
+address). Bind plzbot to the VM's primary address instead; a public visitor still reaches it:
+
+```sh
+IP=$(ip -4 -o addr show ens4 | awk '{print $4}' | cut -d/ -f1)   # primary interface; may not be ens4
+cat > docker-compose.override.yml <<EOF
+services:
+  plzbot:
+    ports: !override
+      - "$IP:80:80"
+      - "$IP:443:443"
+EOF
+docker compose up -d
+```
+
+On Google Cloud the VM's public IP is ephemeral (it survives a reboot, but not a stop/start), and
+the firewall needs a rule allowing TCP 80 and 443 plus a matching network tag on the instance. If
+you point DNS at the IP, reserve it as a static address first.
+
 ### Optional: ASN / network-owner lookups
 
 Download the public-domain table from iptoasn.com (~40 MB) and point the app at it — no API key:

@@ -11,3 +11,6 @@ course/audio/
 course/models/
 course/tools/.venv/
 course/tools/__pycache__/
+
+# Per-host compose settings (see deploy/README.md)
+docker-compose.override.yml
