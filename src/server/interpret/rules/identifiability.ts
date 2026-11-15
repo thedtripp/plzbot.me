@@ -9,11 +9,13 @@ import { findObservation } from "../lookup.js";
  */
 const HIGH_ENTROPY_SIGNAL_IDS: Array<{ id: string; label: string }> = [
   { id: "browser.graphics.canvas_hash", label: "Canvas rendering hash" },
-  { id: "browser.graphics.webgl_renderer", label: "WebGL renderer string" },
+  { id: "browser.graphics.webgl", label: "WebGL vendor/renderer and extension list" },
   { id: "browser.audio.fingerprint_hash", label: "AudioContext fingerprint" },
   { id: "browser.fonts.detected", label: "Detected font list" },
   { id: "derived.ja3_hash", label: "TLS JA3 hash" },
   { id: "derived.ja4", label: "TLS JA4 fingerprint" },
+  { id: "http2.fingerprint_partial", label: "HTTP/2 SETTINGS/pseudo-header fingerprint" },
+  { id: "http.header_order", label: "HTTP header order" },
   { id: "client_hints.sec_ch_ua_full_version_list", label: "Full browser version list (high-entropy Client Hint)" },
 ];
 

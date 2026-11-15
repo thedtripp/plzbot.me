@@ -21,8 +21,8 @@ export function createApp(config: RuntimeConfig = loadConfig()): Handler {
     json(res, 200, { ok: true, mode: config.mode, schemaVersion: SCHEMA_VERSION });
   });
 
-  router.get("/api/v1/fingerprint", (req, res) => {
-    const fp = buildFingerprint(req, undefined, config);
+  router.get("/api/v1/fingerprint", async (req, res) => {
+    const fp = await buildFingerprint(req, undefined, config);
     json(res, 200, fp);
   });
 
@@ -38,7 +38,7 @@ export function createApp(config: RuntimeConfig = loadConfig()): Handler {
       json(res, 400, { error: "Request body must be a JSON object of client observation arrays." });
       return;
     }
-    const fp = buildFingerprint(req, body as ClientSubmission | undefined, config);
+    const fp = await buildFingerprint(req, body as ClientSubmission | undefined, config);
     json(res, 200, fp);
   });
 

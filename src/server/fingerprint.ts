@@ -7,7 +7,9 @@ import {
   type Fingerprint,
   type Observation,
 } from "../shared/schema/types.js";
-import { collectNetwork } from "./collectors/network.js";
+import { collectNetwork, collectReverseDns } from "./collectors/network.js";
+import { deriveClientSignature } from "./derive/agentSignatures.js";
+import { getIp2AsnTable } from "./runtime/ip2asn.js";
 import { collectHttp } from "./collectors/http.js";
 import { collectHttp2 } from "./collectors/http2.js";
 import { collectTls } from "./collectors/tls.js";
@@ -32,13 +34,17 @@ export interface ClientSubmission {
   automation?: Observation[];
 }
 
-function buildServerHalf(req: IncomingMessage, config: RuntimeConfig): Pick<Fingerprint, "server" | "request"> {
+async function buildServerHalf(req: IncomingMessage, config: RuntimeConfig): Promise<Pick<Fingerprint, "server" | "request">> {
   const socket = req.socket as TLSSocket;
   const connectionMeta = getConnectionMeta(socket);
   const ctx = getRequestContext(req, config);
+  const ip2asn = getIp2AsnTable(config.ip2asnPath, (m) => console.error(`[ip2asn] ${m}`));
+
+  const network = collectNetwork(req, connectionMeta, ctx, ip2asn);
+  network.push(await collectReverseDns(ctx.clientIp));
 
   const server = {
-    network: collectNetwork(req, connectionMeta, ctx),
+    network,
     tls: collectTls(req, connectionMeta),
     http: collectHttp(req),
     http2: collectHttp2(req),
@@ -59,7 +65,7 @@ function buildServerHalf(req: IncomingMessage, config: RuntimeConfig): Pick<Fing
 function deriveAll(fp: Pick<Fingerprint, "server">, req: IncomingMessage) {
   const socket = req.socket as TLSSocket;
   const connectionMeta = getConnectionMeta(socket);
-  return [...deriveTls(connectionMeta), ...deriveUserAgent(fp.server.http)];
+  return [...deriveTls(connectionMeta), ...deriveUserAgent(fp.server.http), ...deriveClientSignature(fp.server.http)];
 }
 
 function isEmptyClientSignals(payload: ClientSubmission | undefined): boolean {
@@ -80,13 +86,13 @@ function isEmptyClientSignals(payload: ClientSubmission | undefined): boolean {
 
 let defaultConfig: RuntimeConfig | null = null;
 
-export function buildFingerprint(
+export async function buildFingerprint(
   req: IncomingMessage,
   clientPayload?: ClientSubmission,
   config?: RuntimeConfig,
-): Fingerprint {
+): Promise<Fingerprint> {
   const cfg = config ?? (defaultConfig ??= loadConfig());
-  const { server, request } = buildServerHalf(req, cfg);
+  const { server, request } = await buildServerHalf(req, cfg);
 
   const client: ClientSignals | null = isEmptyClientSignals(clientPayload)
     ? null

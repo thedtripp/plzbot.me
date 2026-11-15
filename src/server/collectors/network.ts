@@ -3,6 +3,9 @@ import { observed, unavailable } from "../../shared/schema/types.js";
 import type { ConnectionMeta } from "../tls-capture/frontProxy.js";
 import type { IncomingMessage } from "node:http";
 import type { RequestContext } from "../runtime/requestContext.js";
+import { classifyIp } from "../runtime/ipClass.js";
+import type { Ip2AsnTable } from "../runtime/ip2asn.js";
+import dns from "node:dns/promises";
 
 /**
  * Untrusted-by-default proxy headers. We always parse and show them (educational value —
@@ -14,6 +17,7 @@ export function collectNetwork(
   req: IncomingMessage,
   connectionMeta: ConnectionMeta | undefined,
   ctx?: RequestContext,
+  ip2asn?: Ip2AsnTable | null,
 ): Observation[] {
   const out: Observation[] = [];
 
@@ -91,10 +95,52 @@ export function collectNetwork(
     out.push(unavailable("network.x_real_ip", "network", "server", "http_header_untrusted"));
   }
 
-  // Deliberately not collected in the MVP: no outbound call to a third-party IP-intelligence
-  // service is made. Reported explicitly as not_configured rather than silently omitted.
-  out.push(unavailable("network.asn", "network", "server", "not_configured"));
+  // Structural address classification — local, no lookups (RFC 6890 special-purpose ranges).
+  const clientIp = ctx?.clientIp ?? remoteIp;
+  if (clientIp) {
+    const cls = classifyIp(clientIp);
+    out.push(observed("network.client_ip_class", "network", "server", "rfc6890_special_purpose_registry", cls, cls.scope));
+  } else {
+    out.push(unavailable("network.client_ip_class", "network", "server", "rfc6890_special_purpose_registry"));
+  }
+
+  // ASN / network owner: only from the optional offline iptoasn.com table (PLZBOT_IP2ASN_PATH);
+  // never an outbound call. Unconfigured is reported as such rather than silently omitted.
+  if (ip2asn && clientIp) {
+    const rec = ip2asn.lookup(clientIp);
+    out.push(
+      rec
+        ? observed("network.asn", "network", "server", "offline_ip2asn_table", rec, `AS${rec.asn} ${rec.description}`)
+        : unavailable("network.asn", "network", "server", "offline_ip2asn_table:no_match"),
+    );
+  } else {
+    out.push(unavailable("network.asn", "network", "server", "not_configured"));
+  }
+  // No geolocation database is used; the iptoasn country code (registration country of the
+  // AS, not the user's location) is the closest thing and is reported inside network.asn.
   out.push(unavailable("network.geo", "network", "server", "not_configured"));
 
   return out;
+}
+
+/**
+ * Reverse DNS (PTR) for the client address. Async and bounded, so it runs after the
+ * synchronous collectors; failures and timeouts are reported as `unavailable` with the reason.
+ * The PTR name is whatever the address's owner chose to publish — informative (cloud
+ * provider / ISP naming conventions are recognizable) but not authoritative.
+ */
+export async function collectReverseDns(ip: string | null, timeoutMs = 1500): Promise<Observation> {
+  const id = "network.reverse_dns";
+  if (!ip) return unavailable(id, "network", "server", "dns_ptr_lookup");
+  const cls = classifyIp(ip);
+  if (cls.scope !== "public") return unavailable(id, "network", "server", `dns_ptr_lookup:skipped_${cls.scope}`);
+  try {
+    const names = await Promise.race([
+      dns.reverse(ip),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), timeoutMs)),
+    ]);
+    return names.length > 0 ? observed(id, "network", "server", "dns_ptr_lookup", names) : unavailable(id, "network", "server", "dns_ptr_lookup:no_ptr");
+  } catch (err) {
+    return unavailable(id, "network", "server", `dns_ptr_lookup:${(err as Error).message.toLowerCase().replace(/\s+/g, "_").slice(0, 40)}`);
+  }
 }

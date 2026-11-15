@@ -176,10 +176,45 @@ describe("GET /api/v1/fingerprint over HTTP/2", () => {
     expect(alpn.raw).toBe("h2");
   });
 
-  it("marks http.header_order as unavailable for HTTP/2 (documented compat-API limitation)", async () => {
+  it("observes header order and pseudo-header order from the HTTP/2 HEADERS frame", async () => {
     const { body } = await http2GetJson("/api/v1/fingerprint");
     const order = body.server.http.find((o: any) => o.id === "http.header_order");
-    expect(order.status).toBe("unavailable");
+    expect(order.status).toBe("observed");
+    expect(order.collectionMethod).toBe("http2_headers_frame_order");
+    expect(order.raw.some((n: string) => n.startsWith(":"))).toBe(false);
+    const pseudo = body.server.http2.find((o: any) => o.id === "http2.pseudo_header_order");
+    expect(pseudo.status).toBe("observed");
+    expect(pseudo.raw).toEqual(expect.arrayContaining([":method", ":path", ":scheme", ":authority"]));
+    expect(typeof pseudo.normalized).toBe("string");
+    const h2fp = body.server.http2.find((o: any) => o.id === "http2.fingerprint_partial");
+    expect(h2fp.status).toBe("observed");
+    expect(h2fp.raw).toMatch(/^\d+:\d+(;\d+:\d+)*\|\?\|/);
+    const casing = body.server.http.find((o: any) => o.id === "http.header_casing");
+    expect(casing.status).toBe("not_applicable");
+  });
+
+  it("names TLS code points and reports GREASE / key_share / supported_versions", async () => {
+    const { body } = await http2GetJson("/api/v1/fingerprint");
+    const tls = (id: string) => body.server.tls.find((o: any) => o.id === id);
+    expect(tls("tls.clienthello.cipher_suites").normalized).toContain("TLS_AES_128_GCM_SHA256");
+    expect(tls("tls.clienthello.extensions").normalized).toContain("supported_versions");
+    expect(tls("tls.clienthello.supported_versions").normalized).toContain("TLS 1.3");
+    expect(tls("tls.clienthello.key_share_groups").status).toBe("observed");
+    expect(typeof tls("tls.clienthello.grease").normalized).toBe("boolean");
+    expect(tls("tls.clienthello.raw_hex").raw).toMatch(/^16030/);
+    expect(tls("tls.session_reused").status).toBe("observed");
+  });
+
+  it("classifies the client IP and reports ASN/reverse DNS as unavailable with reasons", async () => {
+    const { body } = await httpsGetJson("/api/v1/fingerprint");
+    const net = (id: string) => body.server.network.find((o: any) => o.id === id);
+    expect(net("network.client_ip_class").normalized).toBe("loopback");
+    expect(net("network.asn").status).toBe("unavailable");
+    expect(net("network.asn").collectionMethod).toBe("not_configured");
+    expect(net("network.reverse_dns").status).toBe("unavailable");
+    expect(net("network.reverse_dns").collectionMethod).toBe("dns_ptr_lookup:skipped_loopback");
+    const sig = body.derived.find((d: any) => d.id === "derived.client_signature");
+    expect(sig.status).toBe("computed");
   });
 
   it("does not crash the server across repeated HTTP/2 requests", async () => {
