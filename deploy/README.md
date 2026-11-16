@@ -32,7 +32,7 @@ fingerprint. HTTP mode is the fallback for zero-ops hosting.
 | `PLZBOT_DATABASE_URL` (or `DATABASE_URL`) | unset | Postgres connection string. Set = every fingerprint is saved (kept forever); unset = nothing is stored. A secret: keep it in `.env` only. |
 | `PLZBOT_ADMIN_PASSWORD` | unset | 12+ characters. Enables the private analysis page at `/admin` (HTTP Basic auth, any username) over the stored fingerprints. Unset = `/admin` returns 404. Ten wrong attempts lock an IP out for 5 minutes. |
 | `PLZBOT_STORE_LIMIT_PER_MINUTE` / `_PER_HOUR` / `_PER_DAY` | `10` / `30` / `100` | Max fingerprints **saved** per visitor (IPv4 address or IPv6 /64) in each window; visitors still get their response. Over a limit the record is counted, not stored (shown on the admin page). `0` disables a tier. |
-| `PLZBOT_STORE_MAX_TABLE_MB` | `800` | Stop saving full records while the `fingerprints` table is over this size (protects a 1 GB free database). `0` = no cap. |
+| `PLZBOT_STORE_MAX_TABLE_MB` | `800` | Stop saving visits while the stored data (`visits` + `fingerprint_docs`) is over this size (protects a 1 GB free database). `0` = no cap. |
 
 ## Option A — free VM, full TLS fingerprinting (recommended)
 

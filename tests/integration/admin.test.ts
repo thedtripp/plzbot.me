@@ -2,7 +2,9 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import http from "node:http";
 import { createApp } from "../../src/server/app.js";
 import { loadConfig } from "../../src/server/runtime/config.js";
+import pg from "pg";
 import { createStore, type FingerprintStore } from "../../src/server/storage/postgres.js";
+import { resetStoreTables } from "../helpers/db.js";
 
 const PASSWORD = "correct-horse-battery";
 const basic = (pw: string) => ({ authorization: "Basic " + Buffer.from(`admin:${pw}`).toString("base64") });
@@ -83,22 +85,24 @@ const DB_URL = process.env.PLZBOT_TEST_DATABASE_URL;
 describe.skipIf(!DB_URL)("admin data endpoints (Postgres)", () => {
   let s: { server: http.Server; port: number };
   let store: FingerprintStore;
+  let db: pg.Pool;
   const auth = basic(PASSWORD);
 
   beforeAll(async () => {
     const config = loadConfig({ PLZBOT_MODE: "http", PLZBOT_ADMIN_PASSWORD: PASSWORD, PLZBOT_DATABASE_URL: DB_URL });
     store = createStore(config, () => {})!;
-    await store.query("SELECT 1");
-    await store.query("TRUNCATE fingerprints");
+    db = new pg.Pool({ connectionString: DB_URL, max: 2 });
+    await resetStoreTables(db);
     s = await listen(createApp(config, store));
     await get(s.port, "/", { "user-agent": "GPTBot/1.2 100%_real" });
     await get(s.port, "/api/v1/fingerprint", { "user-agent": "curl/8.7.1" });
     await get(s.port, "/api/v1/fingerprint", { "user-agent": "<script>alert(1)</script>" });
-    for (let i = 0; i < 100 && (await store.query("SELECT 1 FROM fingerprints")).length < 3; i++) await new Promise((r) => setTimeout(r, 50));
+    for (let i = 0; i < 100 && (await store.query("SELECT 1 FROM visits")).length < 3; i++) await new Promise((r) => setTimeout(r, 50));
   });
   afterAll(async () => {
     await new Promise<void>((r) => s.server.close(() => r()));
     await store.close();
+    await db.end();
   });
 
   it("overview reports totals, daily counts by kind, agents and rules", async () => {
@@ -148,14 +152,16 @@ describe.skipIf(!DB_URL)("admin data endpoints (Postgres)", () => {
       derived: [],
       interpretation: { assessments: [] },
     };
+    await store.query("INSERT INTO fingerprint_docs (hash, first_seen, ja4, doc) VALUES ('hash-for-hostname-test', now(), NULL, $1)", [JSON.stringify(doc)]);
     await store.query(
-      "INSERT INTO fingerprints (id, seen_at, kind, client_ip, ja4, doc) VALUES ($1, now(), 'page_view', '203.0.113.7', NULL, $2)",
-      [doc.fingerprintId, JSON.stringify(doc)],
+      `INSERT INTO visits (id, seen_at, kind, client_ip, hostname, host, target, fingerprint)
+       VALUES ($1, now(), 'page_view', '203.0.113.7', 'scan-17.example-isp.net', 'admin.example.org', '/', 'hash-for-hostname-test')`,
+      [doc.fingerprintId],
     );
     const list = async (qs: string) => JSON.parse((await get(s.port, "/api/v1/admin/fingerprints?" + qs, auth)).text);
     const hit = await list("host=" + encodeURIComponent("example-isp"));
     expect(hit.rows).toHaveLength(1);
-    expect(hit.rows[0]).toMatchObject({ ip: "203.0.113.7", hostname: "scan-17.example-isp.net" });
+    expect(hit.rows[0]).toMatchObject({ ip: "203.0.113.7", hostname: "scan-17.example-isp.net", host: "admin.example.org" });
     expect((await list("host=" + encodeURIComponent("%"))).rows).toHaveLength(0);
     expect((await list("")).rows.filter((r: any) => r.hostname === null).length).toBeGreaterThan(0); // loopback visits have none
     const overview = JSON.parse((await get(s.port, "/api/v1/admin/overview?days=7", auth)).text);

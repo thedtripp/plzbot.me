@@ -75,14 +75,13 @@ function gate(req: IncomingMessage, res: ServerResponse, config: RuntimeConfig):
 // One pass over the window; every report selects from this.
 const RECENT = `
 WITH recent AS (
-  SELECT id, seen_at, kind, host(client_ip) AS ip, ja4,
-    (SELECT o->>'raw' FROM jsonb_array_elements(doc->'server'->'http') o WHERE o->>'id' = 'http.headers.user_agent' LIMIT 1) AS ua,
-    (SELECT d->'value'->>'name' FROM jsonb_array_elements(doc->'derived') d WHERE d->>'id' = 'derived.client_signature' LIMIT 1) AS agent,
-    (SELECT d->'value'->>'category' FROM jsonb_array_elements(doc->'derived') d WHERE d->>'id' = 'derived.client_signature' LIMIT 1) AS agent_category,
-    (SELECT o->'normalized'->>0 FROM jsonb_array_elements(doc->'server'->'network') o WHERE o->>'id' = 'network.reverse_dns' LIMIT 1) AS hostname,
-    CASE WHEN jsonb_typeof(doc->'interpretation'->'assessments') = 'array' THEN doc->'interpretation'->'assessments' ELSE '[]'::jsonb END AS assessments
-  FROM fingerprints
-  WHERE seen_at >= now() - make_interval(days => $1)
+  SELECT v.id, v.seen_at, v.kind, host(v.client_ip) AS ip, d.ja4, v.hostname, v.host, v.target, v.fingerprint,
+    (SELECT o->>'raw' FROM jsonb_array_elements(d.doc->'server'->'http') o WHERE o->>'id' = 'http.headers.user_agent' LIMIT 1) AS ua,
+    (SELECT x->'value'->>'name' FROM jsonb_array_elements(d.doc->'derived') x WHERE x->>'id' = 'derived.client_signature' LIMIT 1) AS agent,
+    (SELECT x->'value'->>'category' FROM jsonb_array_elements(d.doc->'derived') x WHERE x->>'id' = 'derived.client_signature' LIMIT 1) AS agent_category,
+    CASE WHEN jsonb_typeof(d.doc->'interpretation'->'assessments') = 'array' THEN d.doc->'interpretation'->'assessments' ELSE '[]'::jsonb END AS assessments
+  FROM visits v JOIN fingerprint_docs d ON d.hash = v.fingerprint
+  WHERE v.seen_at >= now() - make_interval(days => $1)
 )`;
 
 const intParam = (v: string | null, def: number, min: number, max: number) => {
@@ -117,9 +116,11 @@ export function registerAdminRoutes(router: Router, config: RuntimeConfig, store
     const days = intParam(new URL(req.url ?? "", "http://x").searchParams.get("days"), 7, 1, 365);
     const [totals, daily, topJa4, topAgents, topIps, rules, notSavedByTier, notSavedIps] = await Promise.all([
       store.query(
-        `SELECT (SELECT count(*)::int FROM fingerprints) AS all_time,
-                pg_total_relation_size('fingerprints')::bigint AS table_bytes,
-                count(*)::int AS total, count(DISTINCT ip)::int AS ips, count(DISTINCT ja4)::int AS ja4s
+        `SELECT (SELECT count(*)::int FROM visits) AS all_time,
+                (SELECT count(*)::int FROM fingerprint_docs) AS distinct_all_time,
+                (pg_total_relation_size('visits') + pg_total_relation_size('fingerprint_docs'))::bigint AS table_bytes,
+                count(*)::int AS total, count(DISTINCT ip)::int AS ips, count(DISTINCT ja4)::int AS ja4s,
+                count(DISTINCT fingerprint)::int AS fingerprints
          FROM (${RECENT} SELECT * FROM recent) r`,
         [days],
       ),
@@ -189,7 +190,7 @@ export function registerAdminRoutes(router: Router, config: RuntimeConfig, store
     if (text) add((i) => `ua ILIKE '%' || $${i} || '%' ESCAPE '\\'`, text.replace(/[\\%_]/g, "\\$&"));
     params.push(limit + 1, offset);
     const rows = await store.query(
-      `${RECENT} SELECT id, seen_at, kind, ip, hostname, ja4, ua, agent, agent_category, jsonb_array_length(assessments)::int AS rules
+      `${RECENT} SELECT id, seen_at, kind, ip, hostname, host, ja4, ua, agent, agent_category, jsonb_array_length(assessments)::int AS rules
        FROM recent ${where.length ? "WHERE " + where.join(" AND ") : ""} ORDER BY seen_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params,
     );
@@ -200,7 +201,14 @@ export function registerAdminRoutes(router: Router, config: RuntimeConfig, store
     if (!gate(req, res, config) || !needStore(store, res)) return;
     const id = new URL(req.url ?? "", "http://x").searchParams.get("id") ?? "";
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return send(res, 400, { error: "id must be a uuid" });
-    const rows = await store.query(`SELECT id, seen_at, kind, host(client_ip) AS ip, doc FROM fingerprints WHERE id = $1`, [id]);
+    // The visit's own details, plus the shared fingerprint document and how many visits share it.
+    // (doc is the full record of the FIRST visit with this fingerprint, so its per-request values may differ from this visit's.)
+    const rows = await store.query(
+      `SELECT v.id, v.seen_at, v.kind, host(v.client_ip) AS ip, v.hostname, v.host, v.target, v.fingerprint,
+              (SELECT count(*)::int FROM visits WHERE fingerprint = v.fingerprint) AS visits_with_this_fingerprint, d.doc
+       FROM visits v JOIN fingerprint_docs d ON d.hash = v.fingerprint WHERE v.id = $1`,
+      [id],
+    );
     if (rows.length === 0) return send(res, 404, { error: "Not found" });
     send(res, 200, rows[0]);
   });

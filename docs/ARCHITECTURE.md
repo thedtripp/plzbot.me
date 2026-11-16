@@ -15,7 +15,7 @@ decision doesn't need to be re-litigated later.
 | TLS ClientHello capture | Hand-rolled raw-socket interceptor (`src/server/tls-capture/`) | Node's `tls` module terminates and parses the handshake internally and does not expose the raw ClientHello bytes through any public API. JA3/JA4 require the *raw, unparsed* cipher/extension list in wire order, so we peek the first TLS record off the raw `net.Socket` before Node's TLS engine consumes it, parse it ourselves, then hand the (rewound) socket to the real TLS server. See `docs/TLS_CAPTURE.md`. |
 | Client bundle | esbuild, no framework, plain TS → single IIFE script | The collector must run automatically on load with no dependencies that could themselves become a fingerprinting confound (e.g. a framework's own feature probing). Kept dependency-free by design. |
 | Tests | Vitest + Supertest | Vitest runs native TS/ESM without a separate build step; Supertest drives the Express app in-process for HTTP-level assertions. Non-Node clients (curl, Python `requests`) are exercised via real subprocess calls against a running server in integration tests, not mocked. |
-| Persistence | Optional Postgres (`pg`) | Off unless `PLZBOT_DATABASE_URL` is set. Stores each `Fingerprint` document unchanged as jsonb; see "Stored fingerprints" below. |
+| Persistence | Optional Postgres (`pg`) | Off unless `PLZBOT_DATABASE_URL` is set. Stores each distinct `Fingerprint` document once as jsonb, plus a small row per visit; see "Stored fingerprints" below. |
 
 ## Signal availability by environment
 
@@ -140,10 +140,27 @@ Code: `src/server/storage/postgres.ts`. Enabled by `PLZBOT_DATABASE_URL` (or `DA
   (a request for `/` or `/index.html`, so crawlers and agents that never run JavaScript still
   leave a record), `api_get` (`GET /api/v1/fingerprint`) and `client_submit` (the browser's
   `POST /api/v1/fingerprint/client`). Static files and `/healthz` are not saved.
-- **Table `fingerprints`:** `id` (the document's `fingerprintId`), `seen_at`, `kind`, `client_ip`
-  (`inet`, raw), `ja4`, and `doc`, the full fingerprint as jsonb including `interpretation`.
-  Anything else is queryable through the jsonb, for example `doc->'request'->>'httpVersion'`.
-  The table is created automatically at startup (`CREATE TABLE IF NOT EXISTS`).
+- **Identical fingerprints are stored once; every visit is kept** (`schema.ts`, `dedupe.ts`).
+  Table `fingerprint_docs` holds one row per distinct fingerprint: `hash`, `first_seen`, `ja4` and
+  `doc`, the full record (including `interpretation`) of the *first* visit that produced it, so its
+  per-request values (that visit's Host header, IP, ports) are not meaningful for other visits.
+  Table `visits` holds one small row (about 150 bytes) per request: `id` (the record's
+  `fingerprintId`), `seen_at`, `kind`, `client_ip` (`inet`, raw), `hostname` (reverse DNS of the
+  IP), `host` (the Host header the visitor sent; visitor-chosen, so unverified), `target`, and
+  `fingerprint` (the hash). Everything else is queryable through the jsonb, for example
+  `doc->'request'->>'httpVersion'`. Tables are created automatically at startup.
+- **What "the same fingerprint" means** (`fingerprintHash` in `dedupe.ts`): a SHA-256 over the
+  JA4 and negotiated TLS protocol/cipher/ALPN, the HTTP headers and their order, the HTTP/2
+  settings, Client Hints, the IP class and every browser-collected signal. It ignores what changes
+  on every request without describing the client: ids and timestamps, client IP and port, the
+  Host header and SNI, the request path, Referer, the HTTP/2 stream number, and the raw
+  ClientHello bytes (random data, extension order). A hash that is too strict only keeps an extra
+  copy; too loose would merge different clients, so the ignore list is short and explicit.
+- **Migrating older data.** The first start after upgrading copies every row of the original
+  one-document-per-visit `fingerprints` table into the two new tables, then renames it to
+  `fingerprints_legacy`. Nothing is deleted, and the copy is repeatable if interrupted. Rolling
+  back to an older release would create a new, empty `fingerprints` table; the data stays in
+  `visits`, `fingerprint_docs` and `fingerprints_legacy`.
 - **Writes never block a request.** Each insert is fire-and-forget; a failed insert is logged and
   that record is lost. There is no queue, retry or retention: records are kept forever, and a
   full or unreachable database fails silently apart from the log line. Adding observability for
@@ -153,13 +170,16 @@ Code: `src/server/storage/postgres.ts`. Enabled by `PLZBOT_DATABASE_URL` (or `DA
   records per minute (*fast*), 30 per hour (*medium*) and 100 per day (*slow*) are saved, and a
   record must be under all three. Past a limit it is counted, not stored, in the table
   `suppressed_fingerprints` (per hour, IP and tier), which the admin page shows. A fifth tier,
-  *size*, stops saving full records while the `fingerprints` table is over 800 MB (checked every
+  *size*, stops saving visits while `visits` plus `fingerprint_docs` are over 800 MB (checked every
   5 minutes), so a flood from many addresses cannot fill a small free database. Limits are kept in
   memory per process and reset on restart. Settings: `PLZBOT_STORE_LIMIT_PER_MINUTE`, `_PER_HOUR`,
   `_PER_DAY` (0 disables a tier) and `PLZBOT_STORE_MAX_TABLE_MB`.
-- **Size:** about 8 KB for a server-only record as stored (compressed jsonb), plus indexes; a full
-  browser record is larger because it adds the browser signals.
+- **Size:** a new distinct server-only fingerprint costs about 8 KB (compressed jsonb) once; each
+  further visit with the same fingerprint costs about 150 bytes plus indexes. A full browser
+  fingerprint is larger because it adds the browser signals, and browsers tend to be distinct, so
+  the saving is mostly on bots and scrapers. On the first 131 real records, 57 were distinct.
 - **Secrets:** the connection string lives only in the environment (`.env` on the VM, which is
   gitignored). It is never logged or returned by an endpoint.
-- **Tests:** `tests/integration/storage.test.ts` runs only when `PLZBOT_TEST_DATABASE_URL` points at
-  a throwaway Postgres (it truncates the table).
+- **Tests:** the database tests (`storage`, `dedupe`, `ratelimit`, `admin`) run only when
+  `PLZBOT_TEST_DATABASE_URL` points at a throwaway Postgres (they truncate and drop the storage
+  tables). The hashing rules are covered without a database in `tests/server/dedupe.test.ts`.
