@@ -11,8 +11,8 @@ function fp(over: (f: Fingerprint) => void = () => {}): Fingerprint {
     request: { method: "GET", httpVersion: "1.1", target: "/", scheme: "https", receivedAt: "2026-11-16T00:00:00.000Z" },
     server: {
       network: [
-        observed("network.client_ip", "network", "server", "tcp_peer", "195.178.110.199"),
-        observed("network.remote_ip", "network", "server", "tcp_socket", "195.178.110.199"),
+        observed("network.client_ip", "network", "server", "tcp_peer", "203.0.113.7"),
+        observed("network.remote_ip", "network", "server", "tcp_socket", "203.0.113.7"),
         observed("network.remote_port", "network", "server", "tcp_socket", 40001),
         observed("network.client_ip_class", "network", "server", "rfc6890", { scope: "public" }, "public"),
         unavailable("network.reverse_dns", "network", "server", "dns_ptr_lookup"),
@@ -113,7 +113,7 @@ describe("describeVisit", () => {
       x.server.network.push(observed("network.reverse_dns", "network", "server", "dns", null, ["scan-7.example.net"]));
       x.request.target = "/?probe=1";
     });
-    expect(describeVisit(f)).toMatchObject({ ip: "195.178.110.199", hostname: "scan-7.example.net", host: "admin.sslip.io", target: "/?probe=1", ja4: "t13d1715h1_5b57614c22b0_5c2c66f702b0" });
+    expect(describeVisit(f)).toMatchObject({ ip: "203.0.113.7", hostname: "scan-7.example.net", host: "admin.sslip.io", target: "/?probe=1", ja4: "t13d1715h1_5b57614c22b0_5c2c66f702b0" });
     expect(describeVisit(f).hash).toBe(fingerprintHash(f));
   });
   it("tolerates missing pieces", () => {
