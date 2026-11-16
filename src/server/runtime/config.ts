@@ -35,6 +35,13 @@ export interface RuntimeConfig {
   databaseUrl: string | null;
   /** Password for the private analysis page (/admin). Unset = the page and its API do not exist (404). */
   adminPassword: string | null;
+  /** Max fingerprints SAVED per visitor (IPv4 address / IPv6 /64) per minute, hour and day. 0 disables a tier.
+   * Over the limit, the record is counted (see the admin page) instead of stored. */
+  storeLimitPerMinute: number;
+  storeLimitPerHour: number;
+  storeLimitPerDay: number;
+  /** Stop saving full records once the fingerprints table passes this many MB (0 = no cap). Protects a small free-tier database. */
+  storeMaxTableMb: number;
 }
 
 function envInt(env: NodeJS.ProcessEnv, name: string, fallback: number): number {
@@ -82,5 +89,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): RuntimeConfig 
     ip2asnPath: env.PLZBOT_IP2ASN_PATH || null,
     databaseUrl: env.PLZBOT_DATABASE_URL || env.DATABASE_URL || null,
     adminPassword,
+    storeLimitPerMinute: envInt(env, "PLZBOT_STORE_LIMIT_PER_MINUTE", 10),
+    storeLimitPerHour: envInt(env, "PLZBOT_STORE_LIMIT_PER_HOUR", 30),
+    storeLimitPerDay: envInt(env, "PLZBOT_STORE_LIMIT_PER_DAY", 100),
+    storeMaxTableMb: envInt(env, "PLZBOT_STORE_MAX_TABLE_MB", 800),
   };
 }

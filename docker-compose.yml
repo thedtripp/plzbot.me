@@ -26,6 +26,11 @@ services:
       PLZBOT_DATABASE_URL: ${PLZBOT_DATABASE_URL:-}
       # Password for the private analysis page at /admin (12+ chars). Unset = /admin does not exist.
       PLZBOT_ADMIN_PASSWORD: ${PLZBOT_ADMIN_PASSWORD:-}
+      # Limits on how many fingerprints are saved per visitor, and an overall size cap (see deploy/README.md).
+      PLZBOT_STORE_LIMIT_PER_MINUTE: ${PLZBOT_STORE_LIMIT_PER_MINUTE:-10}
+      PLZBOT_STORE_LIMIT_PER_HOUR: ${PLZBOT_STORE_LIMIT_PER_HOUR:-30}
+      PLZBOT_STORE_LIMIT_PER_DAY: ${PLZBOT_STORE_LIMIT_PER_DAY:-100}
+      PLZBOT_STORE_MAX_TABLE_MB: ${PLZBOT_STORE_MAX_TABLE_MB:-800}
     volumes:
       - letsencrypt:/etc/letsencrypt:ro
       - acme-webroot:/acme-webroot:ro
