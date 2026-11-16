@@ -122,6 +122,9 @@ describe.skipIf(!DB_URL)("admin data endpoints (Postgres)", () => {
     const list = async (qs: string) => JSON.parse((await get(s.port, "/api/v1/admin/fingerprints?" + qs, auth)).text);
     expect((await list("")).rows).toHaveLength(3);
     expect((await list("kind=page_view")).rows).toHaveLength(1);
+    expect((await list("kind=page_view")).rows[0].target).toBe("/");
+    expect((await list("target=" + encodeURIComponent("/api/v1/fingerprint"))).rows).toHaveLength(2); // exact match
+    expect((await list("target=" + encodeURIComponent("/api/v1"))).rows).toHaveLength(0); // not a prefix match
     expect((await list("agent=GPTBot")).rows[0].kind).toBe("page_view");
     expect((await list("q=" + encodeURIComponent("100%_real"))).rows).toHaveLength(1);
     expect((await list("q=" + encodeURIComponent("%"))).rows).toHaveLength(1); // only the UA that contains a literal %
