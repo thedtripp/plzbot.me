@@ -137,6 +137,30 @@ describe.skipIf(!DB_URL)("admin data endpoints (Postgres)", () => {
     expect((await get(s.port, "/api/v1/admin/fingerprint?id=nope", auth)).status).toBe(400);
     expect((await get(s.port, "/api/v1/admin/fingerprint?id=00000000-0000-4000-8000-000000000000", auth)).status).toBe(404);
   });
+
+  it("shows the reverse-DNS hostname, filters on it, and treats LIKE wildcards literally", async () => {
+    const reverseDns = { id: "network.reverse_dns", category: "network", source: "server", status: "observed", raw: null, normalized: ["scan-17.example-isp.net"] };
+    const doc = {
+      fingerprintId: "11111111-1111-4111-8111-111111111111",
+      request: { method: "GET", httpVersion: "1.1", target: "/", scheme: "https", receivedAt: new Date().toISOString() },
+      server: { network: [reverseDns], tls: [], http: [], http2: [], clientHints: [] },
+      client: null,
+      derived: [],
+      interpretation: { assessments: [] },
+    };
+    await store.query(
+      "INSERT INTO fingerprints (id, seen_at, kind, client_ip, ja4, doc) VALUES ($1, now(), 'page_view', '203.0.113.7', NULL, $2)",
+      [doc.fingerprintId, JSON.stringify(doc)],
+    );
+    const list = async (qs: string) => JSON.parse((await get(s.port, "/api/v1/admin/fingerprints?" + qs, auth)).text);
+    const hit = await list("host=" + encodeURIComponent("example-isp"));
+    expect(hit.rows).toHaveLength(1);
+    expect(hit.rows[0]).toMatchObject({ ip: "203.0.113.7", hostname: "scan-17.example-isp.net" });
+    expect((await list("host=" + encodeURIComponent("%"))).rows).toHaveLength(0);
+    expect((await list("")).rows.filter((r: any) => r.hostname === null).length).toBeGreaterThan(0); // loopback visits have none
+    const overview = JSON.parse((await get(s.port, "/api/v1/admin/overview?days=7", auth)).text);
+    expect(overview.topIps.find((r: any) => r.ip === "203.0.113.7").hostname).toBe("scan-17.example-isp.net");
+  });
 });
 
 // Last on purpose: ten failures lock this client IP out for the rest of the window (module-level state).

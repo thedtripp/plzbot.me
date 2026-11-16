@@ -79,6 +79,7 @@ WITH recent AS (
     (SELECT o->>'raw' FROM jsonb_array_elements(doc->'server'->'http') o WHERE o->>'id' = 'http.headers.user_agent' LIMIT 1) AS ua,
     (SELECT d->'value'->>'name' FROM jsonb_array_elements(doc->'derived') d WHERE d->>'id' = 'derived.client_signature' LIMIT 1) AS agent,
     (SELECT d->'value'->>'category' FROM jsonb_array_elements(doc->'derived') d WHERE d->>'id' = 'derived.client_signature' LIMIT 1) AS agent_category,
+    (SELECT o->'normalized'->>0 FROM jsonb_array_elements(doc->'server'->'network') o WHERE o->>'id' = 'network.reverse_dns' LIMIT 1) AS hostname,
     CASE WHEN jsonb_typeof(doc->'interpretation'->'assessments') = 'array' THEN doc->'interpretation'->'assessments' ELSE '[]'::jsonb END AS assessments
   FROM fingerprints
   WHERE seen_at >= now() - make_interval(days => $1)
@@ -134,7 +135,7 @@ export function registerAdminRoutes(router: Router, config: RuntimeConfig, store
         [days],
       ),
       store.query(
-        `${RECENT} SELECT ip, count(*)::int AS n, count(DISTINCT ja4)::int AS ja4s, max(seen_at) AS last_seen, mode() WITHIN GROUP (ORDER BY ua) AS ua
+        `${RECENT} SELECT ip, count(*)::int AS n, count(DISTINCT ja4)::int AS ja4s, max(seen_at) AS last_seen, mode() WITHIN GROUP (ORDER BY hostname) AS hostname, mode() WITHIN GROUP (ORDER BY ua) AS ua
          FROM recent WHERE ip IS NOT NULL GROUP BY ip ORDER BY n DESC LIMIT 15`,
         [days],
       ),
@@ -170,11 +171,13 @@ export function registerAdminRoutes(router: Router, config: RuntimeConfig, store
     if (ja4) add((i) => `ja4 = $${i}`, ja4);
     const agent = q.get("agent");
     if (agent) add((i) => `agent = $${i}`, agent);
+    const host = q.get("host");
+    if (host) add((i) => `hostname ILIKE '%' || $${i} || '%' ESCAPE '\\'`, host.replace(/[\\%_]/g, "\\$&"));
     const text = q.get("q");
     if (text) add((i) => `ua ILIKE '%' || $${i} || '%' ESCAPE '\\'`, text.replace(/[\\%_]/g, "\\$&"));
     params.push(limit + 1, offset);
     const rows = await store.query(
-      `${RECENT} SELECT id, seen_at, kind, ip, ja4, ua, agent, agent_category, jsonb_array_length(assessments)::int AS rules
+      `${RECENT} SELECT id, seen_at, kind, ip, hostname, ja4, ua, agent, agent_category, jsonb_array_length(assessments)::int AS rules
        FROM recent ${where.length ? "WHERE " + where.join(" AND ") : ""} ORDER BY seen_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params,
     );

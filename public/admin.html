@@ -53,6 +53,7 @@
     table.list tr.row { cursor: pointer; }
     table.list tr.row:hover { background: var(--bg-inset); }
     td.mono, td .mono { font-family: var(--mono); font-size: 0.74rem; }
+    td.host { max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); }
     td.ua { max-width: 22rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); }
     .scroll-x { overflow-x: auto; }
     .kind { display: inline-flex; align-items: center; gap: 0.3rem; }
@@ -116,6 +117,7 @@
           <option value="client_submit">Browser submission</option>
         </select>
         <input id="f-ip" placeholder="Client IP" />
+        <input id="f-host" placeholder="Hostname contains…" />
         <input id="f-ja4" placeholder="JA4" />
         <input id="f-agent" placeholder="Agent name" />
         <input id="f-q" placeholder="User-Agent contains…" />
@@ -123,7 +125,7 @@
       </div>
       <div class="scroll-x">
         <table class="list">
-          <thead><tr><th>Time (UTC)</th><th>Kind</th><th>IP</th><th>JA4</th><th>Agent</th><th>Rules</th><th>User-Agent</th></tr></thead>
+          <thead><tr><th>Time (UTC)</th><th>Kind</th><th>IP</th><th>Hostname</th><th>JA4</th><th>Agent</th><th>Rules</th><th>User-Agent</th></tr></thead>
           <tbody id="rows"></tbody>
         </table>
       </div>
@@ -281,7 +283,7 @@
         cards(d.totals); chart(d.daily, d.days);
         ranking("top-ja4", d.topJa4, { label: function (r) { return r.ja4; }, sub: function (r) { return num(r.ips) + " IP" + (r.ips === 1 ? "" : "s") + " · " + (r.ua || "no user agent"); }, onPick: function (r) { setFilter("ja4", r.ja4); } });
         ranking("top-agents", d.topAgents, { label: function (r) { return r.agent; }, sub: function (r) { return r.category; }, onPick: function (r) { if (r.agent !== "(none)") setFilter("agent", r.agent); } });
-        ranking("top-ips", d.topIps, { label: function (r) { return r.ip; }, sub: function (r) { return num(r.ja4s) + " JA4 · last " + ts(r.last_seen) + " · " + (r.ua || "no user agent"); }, onPick: function (r) { setFilter("ip", r.ip); } });
+        ranking("top-ips", d.topIps, { label: function (r) { return r.ip; }, sub: function (r) { return (r.hostname || "no reverse DNS") + " · " + num(r.ja4s) + " JA4 · last " + ts(r.last_seen) + " · " + (r.ua || "no user agent"); }, onPick: function (r) { setFilter("ip", r.ip); } });
         ranking("top-rules", d.rules, { label: function (r) { return r.id; }, sub: function (r) { return r.confidence + " confidence"; } });
         $("status").textContent = "Updated " + new Date().toLocaleTimeString();
       }).catch(function (e) { $("status").textContent = e.message; $("status").className = "error"; });
@@ -289,7 +291,7 @@
 
     function query() {
       var p = new URLSearchParams({ days: state.days, limit: state.limit, offset: state.offset });
-      [["kind", "f-kind"], ["ip", "f-ip"], ["ja4", "f-ja4"], ["agent", "f-agent"], ["q", "f-q"]].forEach(function (f) { var v = $(f[1]).value.trim(); if (v) p.set(f[0], v); });
+      [["kind", "f-kind"], ["ip", "f-ip"], ["host", "f-host"], ["ja4", "f-ja4"], ["agent", "f-agent"], ["q", "f-q"]].forEach(function (f) { var v = $(f[1]).value.trim(); if (v) p.set(f[0], v); });
       return p.toString();
     }
 
@@ -302,6 +304,7 @@
             el("td", { "class": "mono", text: ts(r.seen_at) }),
             el("td", null, [el("span", { "class": "kind" }, [sw, km.label])]),
             el("td", { "class": "mono", text: r.ip || "" }),
+            el("td", { "class": "mono host", title: r.hostname || "", text: r.hostname || "—" }),
             el("td", { "class": "mono", text: r.ja4 || "—" }),
             el("td", { text: r.agent || r.agent_category || "" }),
             el("td", { text: String(r.rules) }),
@@ -313,7 +316,7 @@
         state.offset += d.rows.length;
         $("more").hidden = !d.hasMore;
         $("list-count").textContent = num(state.offset) + (d.hasMore ? "+" : "") + " shown";
-        if (reset && !d.rows.length) $("rows").appendChild(el("tr", null, [el("td", { colspan: 7, "class": "muted", text: "No matching fingerprints." })]));
+        if (reset && !d.rows.length) $("rows").appendChild(el("tr", null, [el("td", { colspan: 8, "class": "muted", text: "No matching fingerprints." })]));
       }).catch(function (e) { $("list-count").textContent = e.message; });
     }
 
@@ -328,9 +331,9 @@
     $("days").addEventListener("change", function () { state.days = Number($("days").value); loadOverview(); loadList(true); });
     $("more").addEventListener("click", function () { loadList(false); });
     $("detail-close").addEventListener("click", function () { $("detail-block").hidden = true; });
-    $("f-clear").addEventListener("click", function () { ["f-kind", "f-ip", "f-ja4", "f-agent", "f-q"].forEach(function (i) { $(i).value = ""; }); loadList(true); });
+    $("f-clear").addEventListener("click", function () { ["f-kind", "f-ip", "f-host", "f-ja4", "f-agent", "f-q"].forEach(function (i) { $(i).value = ""; }); loadList(true); });
     var timer;
-    ["f-ip", "f-ja4", "f-agent", "f-q"].forEach(function (i) { $(i).addEventListener("input", function () { clearTimeout(timer); timer = setTimeout(function () { loadList(true); }, 350); }); });
+    ["f-ip", "f-host", "f-ja4", "f-agent", "f-q"].forEach(function (i) { $(i).addEventListener("input", function () { clearTimeout(timer); timer = setTimeout(function () { loadList(true); }, 350); }); });
     $("f-kind").addEventListener("change", function () { loadList(true); });
 
     loadOverview();
