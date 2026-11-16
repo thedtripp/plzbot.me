@@ -67,7 +67,8 @@ APIs/automation indicators), the combined API, an evidence-based interpretation 
 (automation indicators, cross-signal consistency, identifiability notes), and a frontend that
 presents raw/normalized/derived/interpreted data separately with explanations.
 
-Deliberately out of scope for this MVP (see the spec this was built against): persistent
-storage, population-level rarity/uniqueness scoring, and behavioral (mouse/keystroke/scroll)
+Every fingerprint the server builds is saved to Postgres when `PLZBOT_DATABASE_URL` is set (see
+"Stored fingerprints" in `docs/ARCHITECTURE.md`). Deliberately out of scope for this MVP (see the
+spec this was built against): population-level rarity/uniqueness scoring, and behavioral (mouse/keystroke/scroll)
 fingerprinting — the schema and architecture were designed to accommodate all three later
 without a redesign; see `docs/SCHEMA.md` "Extensibility rules."
