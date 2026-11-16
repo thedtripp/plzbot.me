@@ -22,6 +22,8 @@ services:
       PLZBOT_ACME_WEBROOT: /acme-webroot
       PLZBOT_PUBLIC_ORIGIN: https://${PLZBOT_DOMAIN}
       PLZBOT_IP2ASN_PATH: ${PLZBOT_IP2ASN_PATH:-}
+      # Postgres connection string (e.g. from Neon). Unset = fingerprints are not saved. Keep it in .env only.
+      PLZBOT_DATABASE_URL: ${PLZBOT_DATABASE_URL:-}
     volumes:
       - letsencrypt:/etc/letsencrypt:ro
       - acme-webroot:/acme-webroot:ro

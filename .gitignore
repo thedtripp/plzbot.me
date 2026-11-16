@@ -4,6 +4,7 @@ public/dist/
 public/collector.js
 public/collector.js.map
 certs/
+.env
 *.log
 .DS_Store
 probe-output/
