@@ -33,7 +33,7 @@ export interface RuntimeConfig {
   ip2asnPath: string | null;
   /** Postgres connection string. Unset = fingerprints are not stored. Never log or echo this. */
   databaseUrl: string | null;
-  /** Rows older than this many days are deleted hourly. 0 = keep forever. */
+  /** Rows older than this many days are deleted hourly. 0 (the default) = keep forever, never delete. */
   storeRetentionDays: number;
   /** Max records stored per client IP per minute; excess is counted and dropped (abuse guard). */
   storeRatePerIpPerMin: number;
@@ -82,7 +82,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): RuntimeConfig 
     publicOrigin: env.PLZBOT_PUBLIC_ORIGIN?.replace(/\/+$/, "") || null,
     ip2asnPath: env.PLZBOT_IP2ASN_PATH || null,
     databaseUrl: env.PLZBOT_DATABASE_URL || env.DATABASE_URL || null,
-    storeRetentionDays: envInt(env, "PLZBOT_STORE_RETENTION_DAYS", 90),
+    storeRetentionDays: envInt(env, "PLZBOT_STORE_RETENTION_DAYS", 0),
     storeRatePerIpPerMin: envInt(env, "PLZBOT_STORE_RATE_PER_IP_PER_MIN", 120),
     storeMaxQueue: envInt(env, "PLZBOT_STORE_MAX_QUEUE", 5000),
     requireStore: ["1", "true"].includes((env.PLZBOT_REQUIRE_STORE ?? "").toLowerCase()),

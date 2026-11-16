@@ -29,4 +29,9 @@ describe("runtime config", () => {
     expect(parseTrustedProxy("0", "fly-client-ip")).toEqual({ hops: 0, clientIpHeader: "fly-client-ip" });
     expect(() => parseTrustedProxy("lots", undefined)).toThrow();
   });
+
+  it("keeps stored fingerprints forever unless retention is explicitly set", () => {
+    expect(loadConfig({}).storeRetentionDays).toBe(0);
+    expect(loadConfig({ PLZBOT_STORE_RETENTION_DAYS: "30" }).storeRetentionDays).toBe(30);
+  });
 });

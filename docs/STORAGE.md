@@ -44,7 +44,8 @@ compresses the jsonb. 1M browser visits is roughly 25 to 50 GB with indexes, so 
   `lastError`, `rateLimited`. Alert on `dropped > 0` or a growing `queued`.
 - **Abuse guard.** At most `PLZBOT_STORE_RATE_PER_IP_PER_MIN` records per client IP per minute.
   Client-submitted JSON is capped at 512 KB per request.
-- **Retention.** Rows older than `PLZBOT_STORE_RETENTION_DAYS` (default 90) are deleted hourly.
+- **Retention: forever by default.** Nothing is deleted unless you set `PLZBOT_STORE_RETENTION_DAYS`
+  to a positive number, in which case older rows are removed hourly. Plan disk and backups accordingly.
 - **Shutdown.** SIGINT/SIGTERM flush the queue before exit.
 - **Secrets.** The connection string is never logged or returned by any endpoint. Cookie values
   and `Authorization` values are never collected (names / presence only).

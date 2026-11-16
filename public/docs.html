@@ -113,8 +113,7 @@
 
     <section class="block">
       <h2 id="privacy">Privacy</h2>
-      <p><strong>What is stored.</strong> When a database is configured (it is on plzbot.me), every fingerprint the server builds is saved: each page request, each call to the fingerprint API, and each browser submission. A saved record contains your IP address and the full fingerprint document you see on the main page: request headers (cookie names and an authorization header's presence, never their values), TLS and HTTP/2 handshake details, and the browser signals your collector sent. Records are deleted after 90 days by default (the operator can change this). A self-hosted copy without a database stores nothing. The purpose is research into how browsers, bots and AI agents differ. No population-level uniqueness score is computed for you.</p>
-      <p><strong>What is not.</strong> No cookies are set and nothing is used to track you across visits; records are not linked to each other except by what they have in common (such as the IP address and fingerprint hashes). No outbound calls are made to third-party IP-intelligence/geolocation services (those fields are reported as <code>not_configured</code> rather than silently omitted, which is itself a deliberate design choice — see <code>docs/SCHEMA.md</code>). Proxy headers like <code>X-Forwarded-For</code> are shown, but never trusted to override the directly-observed TCP peer address, since anyone can send an arbitrary value in an untrusted deployment.</p>
+      <p>plzbot.me saves every fingerprint it observes, including your IP address, and keeps it indefinitely.</p>
     </section>
 
     <footer class="page-footer">

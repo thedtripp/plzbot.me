@@ -184,7 +184,7 @@ export async function createStore(config: RuntimeConfig, log: (msg: string) => v
   const store = new PostgresFingerprintStore(config, log);
   try {
     await store.init();
-    log(`[store] fingerprint storage enabled (retention ${config.storeRetentionDays || "forever"} days)`);
+    log(`[store] fingerprint storage enabled (retention: ${config.storeRetentionDays > 0 ? `${config.storeRetentionDays} days` : "forever"})`);
   } catch (err) {
     if (config.requireStore) {
       await store.close();

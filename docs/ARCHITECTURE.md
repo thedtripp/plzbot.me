@@ -121,7 +121,7 @@ tests/
 ## Security & privacy defaults (applies from Phase 2 onward)
 
 - No session state and no cookies. Fingerprints are written to Postgres only when
-  `PLZBOT_DATABASE_URL` is set (raw client IPs included, 90-day retention by default); the
+  `PLZBOT_DATABASE_URL` is set (raw client IPs included, kept forever by default); the
   request path never waits on the database (`docs/STORAGE.md`). Without it nothing is persisted.
 - `X-Forwarded-For` and similar proxy headers are parsed and *shown*, but labeled untrusted
   unless the deployment explicitly configures a trusted proxy count/allowlist (unset by default,
