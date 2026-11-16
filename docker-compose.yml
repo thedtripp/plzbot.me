@@ -22,35 +22,10 @@ services:
       PLZBOT_ACME_WEBROOT: /acme-webroot
       PLZBOT_PUBLIC_ORIGIN: https://${PLZBOT_DOMAIN}
       PLZBOT_IP2ASN_PATH: ${PLZBOT_IP2ASN_PATH:-}
-      # Fingerprint storage. Empty = nothing is saved. The bundled postgres service below is the default.
-      # The password comes from PGPASSWORD (read by the pg driver) so special characters never need URL-escaping.
-      PLZBOT_DATABASE_URL: ${PLZBOT_DATABASE_URL:-postgres://plzbot@postgres:5432/plzbot}
-      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      PLZBOT_STORE_RETENTION_DAYS: ${PLZBOT_STORE_RETENTION_DAYS:-0}
-    depends_on:
-      postgres:
-        condition: service_healthy
     volumes:
       - letsencrypt:/etc/letsencrypt:ro
       - acme-webroot:/acme-webroot:ro
       - ./data:/data:ro
-
-  # Stores fingerprints. Data lives in the pgdata volume; back it up (see docs/STORAGE.md).
-  # Not published on any host port: only the plzbot container can reach it.
-  postgres:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: plzbot
-      POSTGRES_DB: plzbot
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U plzbot -d plzbot"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
 
   # Renews the certificate in place; the app polls the files and hot-reloads them (no restart).
   certbot:
@@ -63,6 +38,5 @@ services:
       - acme-webroot:/acme-webroot
 
 volumes:
-  pgdata:
   letsencrypt:
   acme-webroot:

@@ -41,10 +41,9 @@ async function startHttpMode(config: RuntimeConfig, store: FingerprintStore | nu
 
   const shutdown = () => {
     log("\nShutting down...");
-    // Stop accepting connections, then flush queued fingerprints before exiting.
     server.close();
     void (store?.close() ?? Promise.resolve()).finally(() => process.exit(0));
-    setTimeout(() => process.exit(0), 8000).unref();
+    setTimeout(() => process.exit(0), 2000).unref();
   };
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
@@ -99,7 +98,7 @@ async function startTlsMode(config: RuntimeConfig, store: FingerprintStore | nul
     acmeServer?.close();
     await frontProxy.close();
     internalServer.close();
-    await store?.close(); // flush queued fingerprints
+    await store?.close();
     process.exit(0);
   };
   process.on("SIGINT", shutdown);
@@ -108,8 +107,8 @@ async function startTlsMode(config: RuntimeConfig, store: FingerprintStore | nul
 
 async function main(): Promise<void> {
   const config = loadConfig();
-  const store = await createStore(config, (m) => console.error(m));
-  if (!store) log("[store] no PLZBOT_DATABASE_URL set: fingerprints are NOT being saved.");
+  const store = createStore(config, (m) => console.error(m));
+  if (!store) log("No PLZBOT_DATABASE_URL set: fingerprints are NOT being saved.");
   if (config.mode === "http") await startHttpMode(config, store);
   else await startTlsMode(config, store);
 }

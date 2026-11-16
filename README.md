@@ -54,7 +54,6 @@ docker build -t plzbot . && docker compose up -d   # VM deployment with certbot 
 - `docs/SCHEMA.md` — the canonical fingerprint schema and its design rationale.
 - `docs/TLS_CAPTURE.md` — how raw TLS ClientHello bytes are captured for JA3/JA4 (and why the
   obvious approach doesn't work).
-- `docs/STORAGE.md` — saving fingerprints to Postgres: schema, retention, privacy, example queries.
 - `docs/API.md` — endpoint reference, error handling, CORS, security considerations.
 - `deploy/README.md` — deployment modes, environment variables, free-tier VM and PaaS recipes.
 - `public/docs.html` — the in-app educational write-up (served at `/docs.html`), covering HTTP,
@@ -68,7 +67,7 @@ APIs/automation indicators), the combined API, an evidence-based interpretation 
 (automation indicators, cross-signal consistency, identifiability notes), and a frontend that
 presents raw/normalized/derived/interpreted data separately with explanations.
 
-Fingerprints can be stored in Postgres (`docs/STORAGE.md`). Deliberately out of scope for this
-MVP (see the spec this was built against): population-level rarity/uniqueness scoring, and behavioral (mouse/keystroke/scroll)
+Deliberately out of scope for this MVP (see the spec this was built against): persistent
+storage, population-level rarity/uniqueness scoring, and behavioral (mouse/keystroke/scroll)
 fingerprinting — the schema and architecture were designed to accommodate all three later
 without a redesign; see `docs/SCHEMA.md` "Extensibility rules."

@@ -31,16 +31,8 @@ export interface RuntimeConfig {
   publicOrigin: string | null;
   /** Optional path to an iptoasn.com-style TSV (range_start range_end AS_number country AS_description). */
   ip2asnPath: string | null;
-  /** Postgres connection string. Unset = fingerprints are not stored. Never log or echo this. */
+  /** Postgres connection string. Unset = fingerprints are not stored. Treat as a secret. */
   databaseUrl: string | null;
-  /** Rows older than this many days are deleted hourly. 0 (the default) = keep forever, never delete. */
-  storeRetentionDays: number;
-  /** Max records stored per client IP per minute; excess is counted and dropped (abuse guard). */
-  storeRatePerIpPerMin: number;
-  /** In-memory buffer size while the database is slow or down; oldest records drop beyond this. */
-  storeMaxQueue: number;
-  /** Fail startup if the database is unreachable instead of buffering and retrying. */
-  requireStore: boolean;
 }
 
 function envInt(env: NodeJS.ProcessEnv, name: string, fallback: number): number {
@@ -82,9 +74,5 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): RuntimeConfig 
     publicOrigin: env.PLZBOT_PUBLIC_ORIGIN?.replace(/\/+$/, "") || null,
     ip2asnPath: env.PLZBOT_IP2ASN_PATH || null,
     databaseUrl: env.PLZBOT_DATABASE_URL || env.DATABASE_URL || null,
-    storeRetentionDays: envInt(env, "PLZBOT_STORE_RETENTION_DAYS", 0),
-    storeRatePerIpPerMin: envInt(env, "PLZBOT_STORE_RATE_PER_IP_PER_MIN", 120),
-    storeMaxQueue: envInt(env, "PLZBOT_STORE_MAX_QUEUE", 5000),
-    requireStore: ["1", "true"].includes((env.PLZBOT_REQUIRE_STORE ?? "").toLowerCase()),
   };
 }
