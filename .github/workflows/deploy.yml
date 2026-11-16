@@ -1,0 +1,45 @@
+name: Deploy
+
+# Deploys to the production VM whenever main changes (a merged PR), or on demand from the Actions tab.
+# This never runs for pull requests or forks, so they cannot reach the secrets below.
+# Setup and how it works: "Automatic deploys" in deploy/README.md.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One deploy at a time; a second one waits for the first instead of cancelling it mid-build.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      # The key on the VM is restricted to one forced command (pull, build, restart, health check,
+      # roll back on failure), so whatever is passed here is ignored and no shell is available.
+      - name: Deploy
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o ServerAliveInterval=30 "$DEPLOY_USER@$DEPLOY_HOST" deploy
+
+      - name: Check the live site
+        run: curl --fail --silent --show-error --retry 6 --retry-delay 5 --retry-all-errors https://plzbot.me.ddtripp.com/healthz

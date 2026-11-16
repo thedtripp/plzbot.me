@@ -86,6 +86,59 @@ curl -sI https://<your hostname>/ | head -1
 - From a laptop with the Google Cloud CLI, the same thing in one line:
   `gcloud compute ssh <vm> --zone <zone> --project <project> --command 'cd ~/plzbot.me && git pull --ff-only && docker compose build plzbot && docker compose up -d'`
 
+### Automatic deploys (GitHub Actions)
+
+`.github/workflows/deploy.yml` redeploys the VM whenever `main` changes (a merged PR), and can be
+run by hand from the Actions tab (**Deploy → Run workflow**) or with `gh workflow run deploy.yml`.
+It never runs for pull requests or forks.
+
+**How it works.** The workflow SSHes into the VM with a dedicated key. That key is *restricted*: in
+`authorized_keys` it is bound to a single forced command, `~/plzbot-deploy`, so it can pull the
+latest `main` and run `deploy/deploy.sh` and nothing else (no shell, no forwarding, whatever the
+client asks for is ignored). `deploy/deploy.sh` rebuilds, restarts, waits up to ~3 minutes for the
+container to report healthy, prunes old images, and **rolls back to the previous commit if the new
+version does not become healthy** (the run then fails, so you see it). The workflow ends by
+checking `/healthz` on the public URL. Deploys are serialized: a second merge waits for the first.
+
+**One-time setup** (replace `<user>` and `<host>`; the key pair is generated locally):
+
+```sh
+# 1. A dedicated key, with no passphrase because CI uses it unattended
+ssh-keygen -t ed25519 -N '' -C plzbot-github-deploy -f ./deploy_key
+
+# 2. On the VM: the wrapper the key is allowed to run (it lives outside the repo on purpose)
+cat > ~/plzbot-deploy <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+cd ~/plzbot.me
+export PLZBOT_PREV_COMMIT=$(git rev-parse HEAD)
+git fetch -q origin main
+git merge --ff-only origin/main
+exec bash deploy/deploy.sh
+EOF
+chmod 700 ~/plzbot-deploy
+
+# 3. On the VM: authorize the public key for that one command only
+echo "command=\"/home/<user>/plzbot-deploy\",restrict $(cat deploy_key.pub)" >> ~/.ssh/authorized_keys
+
+# 4. GitHub secrets (repo Settings > Secrets and variables > Actions, or with gh)
+gh secret set DEPLOY_SSH_KEY < deploy_key
+gh secret set DEPLOY_USER --body '<user>'
+gh secret set DEPLOY_HOST --body '<host>'
+# Pin the VM's SSH host key so the runner cannot be tricked into deploying to another machine:
+echo "<host> $(ssh <user>@<host> cat /etc/ssh/ssh_host_ed25519_key.pub)" | gh secret set DEPLOY_KNOWN_HOSTS
+
+# 5. Delete the private key from your machine
+rm deploy_key deploy_key.pub
+```
+
+**Revoking access:** delete the `plzbot-github-deploy` line from `~/.ssh/authorized_keys` on the VM
+and remove the four secrets. **Rolling back by hand:** `git reset --hard <good commit>` in
+`~/plzbot.me`, then `docker compose build plzbot && docker compose up -d`; the next merge to
+`main` fast-forwards from there. The workflow deploys whatever lands on `main` without running the
+test suite first, so merge only what you have reviewed (the health check and rollback are the
+safety net, not a substitute for review).
+
 ### Host-specific compose settings (`docker-compose.override.yml`)
 
 Anything specific to one machine goes in `docker-compose.override.yml`, which is git-ignored.
