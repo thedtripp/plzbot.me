@@ -15,7 +15,7 @@ decision doesn't need to be re-litigated later.
 | TLS ClientHello capture | Hand-rolled raw-socket interceptor (`src/server/tls-capture/`) | Node's `tls` module terminates and parses the handshake internally and does not expose the raw ClientHello bytes through any public API. JA3/JA4 require the *raw, unparsed* cipher/extension list in wire order, so we peek the first TLS record off the raw `net.Socket` before Node's TLS engine consumes it, parse it ourselves, then hand the (rewound) socket to the real TLS server. See `docs/TLS_CAPTURE.md`. |
 | Client bundle | esbuild, no framework, plain TS → single IIFE script | The collector must run automatically on load with no dependencies that could themselves become a fingerprinting confound (e.g. a framework's own feature probing). Kept dependency-free by design. |
 | Tests | Vitest + Supertest | Vitest runs native TS/ESM without a separate build step; Supertest drives the Express app in-process for HTTP-level assertions. Non-Node clients (curl, Python `requests`) are exercised via real subprocess calls against a running server in integration tests, not mocked. |
-| Persistence | None (MVP) | Explicitly out of scope; schema is designed so a storage layer can serialize a `Fingerprint` document unchanged later (see SCHEMA.md "Future persistence"). |
+| Persistence | Optional Postgres (`pg`) | Off unless `PLZBOT_DATABASE_URL` is set. Indexed columns plus the full document as jsonb; see `docs/STORAGE.md`. |
 
 ## Signal availability by environment
 
@@ -120,9 +120,9 @@ tests/
 
 ## Security & privacy defaults (applies from Phase 2 onward)
 
-- No persistence and no session state at all: fingerprints exist only for the lifetime of a
-  single request/response cycle. Nothing is written to disk or a database, and no cookies are
-  set (see "No session/cookie correlation is used" above).
+- No session state and no cookies. Fingerprints are written to Postgres only when
+  `PLZBOT_DATABASE_URL` is set (raw client IPs included, 90-day retention by default); the
+  request path never waits on the database (`docs/STORAGE.md`). Without it nothing is persisted.
 - `X-Forwarded-For` and similar proxy headers are parsed and *shown*, but labeled untrusted
   unless the deployment explicitly configures a trusted proxy count/allowlist (unset by default,
   so in dev these headers — if present — are shown as "client-suppliable, unverified").

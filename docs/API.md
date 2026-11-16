@@ -6,8 +6,7 @@ fingerprinting logic is embedded in the presentation layer (spec §5).
 ## Schema version
 
 Every response includes `schemaVersion` (currently `"1.0.0"`, exported as `SCHEMA_VERSION` from
-`src/shared/schema/types.ts`). This project has no persistence and no cross-version data to
-migrate, so version bumps only need to stay meaningful to API consumers: increment the minor
+`src/shared/schema/types.ts`). Stored fingerprints (`docs/STORAGE.md`) keep their `schemaVersion`, so version bumps only need to stay meaningful to API consumers: increment the minor
 version for additive, backward-compatible changes (new observation ids, new signal categories)
 and the major version for anything that changes the meaning or shape of an existing field. See
 `docs/SCHEMA.md` for the full schema design.
@@ -87,8 +86,9 @@ for a CORS error.
 
 ## Security considerations
 
-- **No persistence, no cookies.** Every response is computed fresh from the current request; see
-  `docs/ARCHITECTURE.md` security/privacy defaults.
+- **No cookies; storage is opt-in.** Every response is computed fresh from the current request.
+  When `PLZBOT_DATABASE_URL` is set the fingerprint is also saved (`docs/STORAGE.md`); otherwise
+  nothing is persisted.
 - **Reflected data is the requester's own.** Raw headers, TLS handshake fields, etc. returned by
   this API describe the request that asked for them — this is not a service that returns
   information about other users or other requests.

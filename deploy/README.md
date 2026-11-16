@@ -29,6 +29,11 @@ fingerprint. HTTP mode is the fallback for zero-ops hosting.
 | `PLZBOT_CLIENT_IP_HEADER` | unset | A header your proxy guarantees to set to the client IP (`cf-connecting-ip`, `fly-client-ip`, `true-client-ip`). Preferred over XFF. |
 | `PLZBOT_PUBLIC_ORIGIN` | unset | `https://your.host` — used for redirects and the text report. |
 | `PLZBOT_IP2ASN_PATH` | unset | Optional path to an iptoasn.com TSV for offline ASN/org lookups (free, no account). |
+| `PLZBOT_DATABASE_URL` (or `DATABASE_URL`) | unset | Postgres connection string. Set = every fingerprint is saved (see `docs/STORAGE.md`); unset = nothing is stored. Treat as a secret. |
+| `PLZBOT_STORE_RETENTION_DAYS` | `90` | Stored fingerprints older than this are deleted hourly. `0` keeps everything. |
+| `PLZBOT_STORE_RATE_PER_IP_PER_MIN` | `120` | Max records saved per client IP per minute (disk-fill guard). `0` disables. |
+| `PLZBOT_STORE_MAX_QUEUE` | `5000` | In-memory buffer while the database is down; the oldest records drop beyond it and show in `/healthz`. |
+| `PLZBOT_REQUIRE_STORE` | unset | `1` = refuse to start if the database is unreachable (otherwise start, buffer and retry). |
 
 ## Option A — free VM, full TLS fingerprinting (recommended)
 

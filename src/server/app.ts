@@ -6,6 +6,7 @@ import { SIGNAL_CATALOG } from "./interpret/catalog.js";
 import { SCHEMA_VERSION } from "../shared/schema/types.js";
 import { PUBLIC_DIR } from "./runtime/paths.js";
 import { loadConfig, type RuntimeConfig } from "./runtime/config.js";
+import type { FingerprintStore } from "./storage/postgres.js";
 
 function json(res: Parameters<Handler>[1], status: number, body: unknown): void {
   res.statusCode = status;
@@ -13,16 +14,26 @@ function json(res: Parameters<Handler>[1], status: number, body: unknown): void 
   res.end(JSON.stringify(body));
 }
 
-export function createApp(config: RuntimeConfig = loadConfig()): Handler {
+/** The HTML entry points. A crawler or agent that never runs JavaScript leaves only this record. */
+const PAGE_PATHS = new Set(["/", "/index.html"]);
+
+export function createApp(config: RuntimeConfig = loadConfig(), store: FingerprintStore | null = null): Handler {
   const router = new Router();
   const staticHandler = serveStatic(PUBLIC_DIR);
 
   router.get("/healthz", (_req, res) => {
-    json(res, 200, { ok: true, mode: config.mode, schemaVersion: SCHEMA_VERSION });
+    // Counters only: never the connection string or any stored data.
+    json(res, 200, {
+      ok: true,
+      mode: config.mode,
+      schemaVersion: SCHEMA_VERSION,
+      storage: store ? { enabled: true, ...store.stats() } : { enabled: false },
+    });
   });
 
   router.get("/api/v1/fingerprint", async (req, res) => {
     const fp = await buildFingerprint(req, undefined, config);
+    store?.save(fp, "api_get");
     json(res, 200, fp);
   });
 
@@ -39,6 +50,7 @@ export function createApp(config: RuntimeConfig = loadConfig()): Handler {
       return;
     }
     const fp = await buildFingerprint(req, body as ClientSubmission | undefined, config);
+    store?.save(fp, "client_submit");
     json(res, 200, fp);
   });
 
@@ -74,6 +86,13 @@ export function createApp(config: RuntimeConfig = loadConfig()): Handler {
   // See docs/ARCHITECTURE.md / collectors/clientHints.ts for why the *first* request in a
   // fresh connection legitimately won't have them yet.
   return (req, res) => {
+    if (store && req.method === "GET" && PAGE_PATHS.has((req.url ?? "").split("?")[0]!)) {
+      // Record the server-observed half for every page request, in the background. Collection
+      // starts now (before the response is sent); the client never waits on it.
+      buildFingerprint(req, undefined, config)
+        .then((fp) => store.save(fp, "page_view"))
+        .catch((err) => console.error(`[store] page_view fingerprint failed: ${(err as Error).message}`));
+    }
     res.setHeader("Accept-CH", ACCEPT_CH_VALUE);
     res.setHeader("Critical-CH", ACCEPT_CH_VALUE);
     res.setHeader("Vary", "Accept-CH");

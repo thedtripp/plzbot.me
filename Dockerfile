@@ -17,7 +17,8 @@ RUN npm run build
 FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/package.json /app/package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/public ./public
 # The server locates public/ relative to package.json (src/server/runtime/paths.ts).
