@@ -23,7 +23,7 @@ async function startApp(env: Record<string, string>) {
   const config = loadConfig({ PLZBOT_MODE: "http", PLZBOT_DATABASE_URL: DB_URL, PLZBOT_ADMIN_PASSWORD: PASSWORD, ...env });
   const store = createStore(config, () => {})!;
   await store.query("SELECT 1");
-  await store.query("TRUNCATE fingerprints, suppressed_fingerprints");
+  await store.query("TRUNCATE visits, fingerprint_docs, suppressed_fingerprints");
   const server = http.createServer(createApp(config, store));
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   return { server, store, port: (server.address() as any).port as number };
@@ -46,7 +46,7 @@ describe.skipIf(!DB_URL)("rate limits on saving (Postgres)", () => {
     expect(statuses.every((s) => s === 200)).toBe(true); // visitors are never refused
     await settle();
     await app.store.flushSuppressed();
-    expect(await count(db, "fingerprints")).toBe(3);
+    expect(await count(db, "visits")).toBe(3);
     const rows = (await db.query("SELECT host(ip) AS ip, tier, n FROM suppressed_fingerprints")).rows;
     expect(rows).toEqual([{ ip: "127.0.0.1", tier: "fast", n: 5 }]);
 
@@ -62,12 +62,12 @@ describe.skipIf(!DB_URL)("rate limits on saving (Postgres)", () => {
     const app = await startApp({ PLZBOT_STORE_MAX_TABLE_MB: "1", PLZBOT_STORE_LIMIT_PER_MINUTE: "0", PLZBOT_STORE_LIMIT_PER_HOUR: "0", PLZBOT_STORE_LIMIT_PER_DAY: "0" });
     // Push the table past 1 MB with filler rows, then wait for the size check to notice.
     await db.query(
-      `INSERT INTO fingerprints (id, seen_at, kind, client_ip, ja4, doc)
-       SELECT gen_random_uuid(), now(), 'page_view', '198.51.100.1', NULL, jsonb_build_object('pad', (SELECT string_agg(md5(random()::text || g::text || i::text), '') FROM generate_series(1, 3000) i))
+      `INSERT INTO fingerprint_docs (hash, first_seen, ja4, doc)
+       SELECT md5(g::text), now(), NULL, jsonb_build_object('pad', (SELECT string_agg(md5(random()::text || g::text || i::text), '') FROM generate_series(1, 3000) i))
        FROM generate_series(1, 60) g`,
     );
-    const before = await count(db, "fingerprints");
-    expect(Number((await db.query("SELECT pg_total_relation_size('fingerprints') AS b")).rows[0].b)).toBeGreaterThan(1024 * 1024);
+    const before = await count(db, "visits");
+    expect(Number((await db.query("SELECT pg_total_relation_size('fingerprint_docs') AS b")).rows[0].b)).toBeGreaterThan(1024 * 1024);
     // The size check runs at startup and every 5 minutes, so start a fresh store to notice the big table.
     await new Promise<void>((r) => app.server.close(() => r()));
     await app.store.close();
@@ -77,7 +77,7 @@ describe.skipIf(!DB_URL)("rate limits on saving (Postgres)", () => {
     for (let i = 0; i < 4; i++) await get(paused.port, "/api/v1/fingerprint");
     await settle();
     await paused.store.flushSuppressed();
-    expect(await count(db, "fingerprints")).toBe(before); // nothing new saved
+    expect(await count(db, "visits")).toBe(before); // nothing new saved
     const rows = (await db.query("SELECT tier, sum(n)::int AS n FROM suppressed_fingerprints GROUP BY tier")).rows;
     expect(rows).toEqual([{ tier: "size", n: 4 }]);
     await new Promise<void>((r) => paused.server.close(() => r()));

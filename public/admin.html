@@ -94,7 +94,7 @@
     <div class="cards" id="cards"></div>
 
     <section class="block">
-      <h2>Fingerprints per day <span class="count">UTC</span></h2>
+      <h2>Visits per day <span class="count">UTC</span></h2>
       <div class="legend" id="legend"></div>
       <div class="chart-wrap" id="chart"></div>
       <details class="data-table"><summary>Show data table</summary><div id="daily-table"></div></details>
@@ -109,7 +109,7 @@
     </div>
 
     <section class="block list-block">
-      <h2>Fingerprints <span class="count" id="list-count"></span></h2>
+      <h2>Visits <span class="count" id="list-count"></span></h2>
       <div class="filters" id="filters">
         <select id="f-kind">
           <option value="">Any kind</option>
@@ -126,7 +126,7 @@
       </div>
       <div class="scroll-x">
         <table class="list">
-          <thead><tr><th>Time (UTC)</th><th>Kind</th><th>IP</th><th>Hostname</th><th>JA4</th><th>Agent</th><th>Rules</th><th>User-Agent</th></tr></thead>
+          <thead><tr><th>Time (UTC)</th><th>Kind</th><th>IP</th><th>Hostname</th><th>Host header</th><th>JA4</th><th>Agent</th><th>Rules</th><th>User-Agent</th></tr></thead>
           <tbody id="rows"></tbody>
         </table>
       </div>
@@ -179,8 +179,8 @@
 
     function cards(t, notSaved) {
       var items = [
-        [num(t.total), "fingerprints in range"], [num(t.ips), "distinct IPs"], [num(t.ja4s), "distinct JA4s"],
-        [num(t.all_time), "stored, all time"], [bytes(t.table_bytes), "table size (Neon free plan: 1 GB)"],
+        [num(t.total), "visits in range"], [num(t.fingerprints), "distinct fingerprints"], [num(t.ips), "distinct IPs"], [num(t.ja4s), "distinct JA4s"],
+        [num(t.all_time), "visits stored, all time (" + num(t.distinct_all_time) + " distinct fingerprints)"], [bytes(t.table_bytes), "table size (Neon free plan: 1 GB)"],
         [num(notSaved), "not saved (rate-limited) in range"]
       ];
       var box = $("cards"); clear(box);
@@ -217,7 +217,7 @@
       var W = 760, H = 220, L = 38, R = 6, T = 8, B = 22, iw = W - L - R, ih = H - T - B;
       var max = niceMax(Math.max.apply(null, list.map(function (d) { return byDay[d].page_view + byDay[d].api_get + byDay[d].client_submit; }).concat([1])));
       var band = iw / list.length, bw = Math.max(2, Math.min(band * 0.72, 40));
-      var root = svg("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Fingerprints per day, stacked by kind" });
+      var root = svg("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Visits per day, stacked by kind" });
       for (var g = 0; g <= 4; g++) {
         var gy = T + ih - (ih * g) / 4;
         root.appendChild(svg("line", { "class": "grid", x1: L, x2: W - R, y1: gy, y2: gy }));
@@ -308,6 +308,7 @@
             el("td", null, [el("span", { "class": "kind" }, [sw, km.label])]),
             el("td", { "class": "mono", text: r.ip || "" }),
             el("td", { "class": "mono host", title: r.hostname || "", text: r.hostname || "—" }),
+            el("td", { "class": "mono host", title: "Host header the visitor sent (chosen by the visitor, not verified)", text: r.host || "—" }),
             el("td", { "class": "mono", text: r.ja4 || "—" }),
             el("td", { text: r.agent || r.agent_category || "" }),
             el("td", { text: String(r.rules) }),
@@ -319,7 +320,7 @@
         state.offset += d.rows.length;
         $("more").hidden = !d.hasMore;
         $("list-count").textContent = num(state.offset) + (d.hasMore ? "+" : "") + " shown";
-        if (reset && !d.rows.length) $("rows").appendChild(el("tr", null, [el("td", { colspan: 8, "class": "muted", text: "No matching fingerprints." })]));
+        if (reset && !d.rows.length) $("rows").appendChild(el("tr", null, [el("td", { colspan: 9, "class": "muted", text: "No matching fingerprints." })]));
       }).catch(function (e) { $("list-count").textContent = e.message; });
     }
 

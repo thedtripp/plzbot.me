@@ -1,8 +1,10 @@
-import net from "node:net";
 import pg from "pg";
 import type { Fingerprint } from "../../shared/schema/types.js";
 import type { RuntimeConfig } from "../runtime/config.js";
+import { describeVisit } from "./dedupe.js";
+import { migrateLegacy } from "./legacy.js";
 import { StorageLimiter, limiterKey } from "./rateLimit.js";
+import { INSERT_VISIT, SCHEMA, visitParams } from "./schema.js";
 
 /** page_view = HTML request, api_get = GET /api/v1/fingerprint, client_submit = browser POST. */
 export type FingerprintKind = "page_view" | "api_get" | "client_submit";
@@ -10,47 +12,16 @@ export type FingerprintKind = "page_view" | "api_get" | "client_submit";
 export interface FingerprintStore {
   /** Fire-and-forget: never throws and never blocks the request. */
   save(fp: Fingerprint, kind: FingerprintKind): void;
-  /** Read-only helper for the analysis page. Waits for the table to exist. */
+  /** Read-only helper for the analysis page. Waits for the tables to exist. */
   query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]>;
-  /** Write the in-memory counts of rate-limited records to the database now. */
+  /** Write the in-memory counts of rate-limited visits to the database now. */
   flushSuppressed(): Promise<void>;
   close(): Promise<void>;
 }
 
-// The whole fingerprint goes in `doc`; the other columns are just the things worth indexing.
-// Everything else is queryable through jsonb, e.g. doc->'request'->>'httpVersion'.
-// `suppressed_fingerprints` counts records that were NOT saved because of a rate limit, per hour,
-// IP and tier (fast / medium / slow / size), so a flood stays visible without filling the database.
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS fingerprints (
-  id        uuid        PRIMARY KEY,
-  seen_at   timestamptz NOT NULL,
-  kind      text        NOT NULL,
-  client_ip inet,
-  ja4       text,
-  doc       jsonb       NOT NULL
-);
-CREATE INDEX IF NOT EXISTS fingerprints_seen_at_idx ON fingerprints (seen_at DESC);
-CREATE INDEX IF NOT EXISTS fingerprints_client_ip_idx ON fingerprints (client_ip);
-CREATE INDEX IF NOT EXISTS fingerprints_ja4_idx ON fingerprints (ja4);
-CREATE TABLE IF NOT EXISTS suppressed_fingerprints (
-  hour timestamptz NOT NULL,
-  ip   inet        NOT NULL,
-  tier text        NOT NULL,
-  n    integer     NOT NULL,
-  PRIMARY KEY (hour, ip, tier)
-);`;
-
 const MAX_PENDING = 1000; // if the database is down, stop queueing instead of growing memory forever
 const FLUSH_EVERY_MS = 60_000;
 const SIZE_CHECK_EVERY_MS = 5 * 60_000;
-
-function clientIp(fp: Fingerprint): string | null {
-  const obs = fp.server.network.find((o) => o.id === "network.client_ip" && o.status === "observed")
-    ?? fp.server.network.find((o) => o.id === "network.remote_ip" && o.status === "observed");
-  let ip = typeof obs?.raw === "string" ? obs.raw.replace(/%.*$/, "").replace(/^::ffff:(?=\d+\.)/i, "") : "";
-  return net.isIP(ip) ? ip : null;
-}
 
 export function createStore(config: RuntimeConfig, log: (msg: string) => void): FingerprintStore | null {
   if (!config.databaseUrl) return null;
@@ -65,12 +36,15 @@ export function createStore(config: RuntimeConfig, log: (msg: string) => void): 
 
   let schemaReady: Promise<unknown> | null = null;
   const ensureSchema = () =>
-    (schemaReady ??= pool.query(SCHEMA).catch((err) => {
-      schemaReady = null; // retry on the next save
-      throw err;
-    }));
+    (schemaReady ??= pool
+      .query(SCHEMA)
+      .then(() => migrateLegacy(pool, log)) // never throws; a failed migration is retried on next start
+      .catch((err) => {
+        schemaReady = null; // retry on the next save
+        throw err;
+      }));
 
-  // Counts of records not saved, keyed by hour|ip|tier; flushed to the database every minute.
+  // Counts of visits not recorded, keyed by hour|ip|tier; flushed to the database every minute.
   let suppressed = new Map<string, { hour: string; ip: string; tier: string; n: number }>();
   const countSuppressed = (ip: string | null, tier: string) => {
     const hour = new Date(Math.floor(Date.now() / 3_600_000) * 3_600_000).toISOString();
@@ -104,15 +78,17 @@ export function createStore(config: RuntimeConfig, log: (msg: string) => void): 
     }
   };
 
-  // Overall size guard: past the cap, stop saving full records (they are counted as tier "size").
+  // Overall size guard: past the cap, stop recording visits (they are counted as tier "size").
   let overCap = false;
   const checkSize = async () => {
     if (config.storeMaxTableMb <= 0) return;
     try {
       await ensureSchema();
-      const { rows } = await pool.query<{ bytes: string }>("SELECT pg_total_relation_size('fingerprints')::bigint AS bytes");
+      const { rows } = await pool.query<{ bytes: string }>(
+        "SELECT (pg_total_relation_size('visits') + pg_total_relation_size('fingerprint_docs'))::bigint AS bytes",
+      );
       const over = Number(rows[0]?.bytes ?? 0) > config.storeMaxTableMb * 1024 * 1024;
-      if (over !== overCap) log(over ? `[store] fingerprints table passed ${config.storeMaxTableMb} MB: saving paused, counting only` : "[store] table size back under the cap: saving resumed");
+      if (over !== overCap) log(over ? `[store] stored data passed ${config.storeMaxTableMb} MB: saving paused, counting only` : "[store] stored data back under the cap: saving resumed");
       overCap = over;
     } catch (err) {
       log(`[store] size check failed: ${(err as Error).message}`);
@@ -132,27 +108,15 @@ export function createStore(config: RuntimeConfig, log: (msg: string) => void): 
 
   return {
     save(fp, kind) {
-      const ip = clientIp(fp);
-      const denied = overCap ? "size" : limiter.check(limiterKey(ip));
+      const visit = describeVisit(fp);
+      const denied = overCap ? "size" : limiter.check(limiterKey(visit.ip));
       if (denied) {
-        countSuppressed(ip, denied);
+        countSuppressed(visit.ip, denied);
         return;
       }
       if (pool.waitingCount > MAX_PENDING) return;
       ensureSchema()
-        .then(() =>
-          pool.query(
-            "INSERT INTO fingerprints (id, seen_at, kind, client_ip, ja4, doc) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO NOTHING",
-            [
-              fp.fingerprintId,
-              fp.request.receivedAt,
-              kind,
-              ip,
-              fp.derived.find((d) => d.id === "derived.ja4")?.value ?? null,
-              JSON.stringify(fp),
-            ],
-          ),
-        )
+        .then(() => pool.query(INSERT_VISIT, visitParams(fp, visit, fp.fingerprintId, fp.request.receivedAt, kind, visit.ip)))
         .catch((err) => log(`[store] could not save fingerprint ${fp.fingerprintId}: ${err.message}`));
     },
     async query(sql, params = []) {

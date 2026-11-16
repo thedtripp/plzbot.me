@@ -4,9 +4,10 @@ import pg from "pg";
 import { createApp } from "../../src/server/app.js";
 import { loadConfig } from "../../src/server/runtime/config.js";
 import { createStore, type FingerprintStore } from "../../src/server/storage/postgres.js";
+import { resetStoreTables } from "../helpers/db.js";
 
 /**
- * Needs a throwaway Postgres (it TRUNCATES `fingerprints`). Skipped unless set:
+ * Needs a throwaway Postgres (it TRUNCATES the storage tables). Skipped unless set:
  *   docker run -d --rm -e POSTGRES_PASSWORD=test -e POSTGRES_DB=plzbot_test -p 54329:5432 postgres:16-alpine
  *   PLZBOT_TEST_DATABASE_URL=postgres://postgres:test@127.0.0.1:54329/plzbot_test npm test
  */
@@ -34,12 +35,7 @@ describe.skipIf(!DB_URL)("fingerprint storage (Postgres)", () => {
     const config = loadConfig({ PLZBOT_MODE: "http", PLZBOT_DATABASE_URL: DB_URL });
     store = createStore(config, () => {})!;
     db = new pg.Pool({ connectionString: DB_URL, max: 2 });
-    // The store creates its table in the background at startup; wait for it, then start clean.
-    for (let i = 0; i < 60; i++) {
-      if ((await db.query("SELECT to_regclass('fingerprints') AS t")).rows[0].t) break;
-      await new Promise((r) => setTimeout(r, 50));
-    }
-    await db.query("TRUNCATE fingerprints");
+    await resetStoreTables(db);
     server = http.createServer(createApp(config, store));
     await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
     port = (server.address() as any).port;
@@ -60,7 +56,7 @@ describe.skipIf(!DB_URL)("fingerprint storage (Postgres)", () => {
     const deadline = Date.now() + 5000;
     let rows: any[] = [];
     while (rows.length < 3 && Date.now() < deadline) {
-      rows = (await db.query("SELECT * FROM fingerprints")).rows;
+      rows = (await db.query("SELECT v.kind, host(v.client_ip) AS client_ip, d.doc FROM visits v JOIN fingerprint_docs d ON d.hash = v.fingerprint")).rows;
       await new Promise((r) => setTimeout(r, 50));
     }
     expect(rows.map((r) => r.kind).sort()).toEqual(["api_get", "client_submit", "page_view"]);
