@@ -115,7 +115,7 @@ export function registerAdminRoutes(router: Router, config: RuntimeConfig, store
   router.get("/api/v1/admin/overview", async (req, res) => {
     if (!gate(req, res, config) || !needStore(store, res)) return;
     const days = intParam(new URL(req.url ?? "", "http://x").searchParams.get("days"), 7, 1, 365);
-    const [totals, daily, topJa4, topAgents, topIps, rules] = await Promise.all([
+    const [totals, daily, topJa4, topAgents, topIps, rules, notSavedByTier, notSavedIps] = await Promise.all([
       store.query(
         `SELECT (SELECT count(*)::int FROM fingerprints) AS all_time,
                 pg_total_relation_size('fingerprints')::bigint AS table_bytes,
@@ -144,8 +144,20 @@ export function registerAdminRoutes(router: Router, config: RuntimeConfig, store
          FROM recent, jsonb_array_elements(assessments) a GROUP BY 1, 2 ORDER BY n DESC LIMIT 20`,
         [days],
       ),
+      // Records that were counted but not saved because of a rate limit (see storage/rateLimit.ts).
+      store.query(
+        `SELECT tier, sum(n)::int AS n FROM suppressed_fingerprints
+         WHERE hour >= date_trunc('hour', now()) - make_interval(days => $1) GROUP BY tier ORDER BY n DESC`,
+        [days],
+      ),
+      store.query(
+        `SELECT host(ip) AS ip, sum(n)::int AS n, string_agg(DISTINCT tier, ', ' ORDER BY tier) AS tiers, max(hour) AS last_hour
+         FROM suppressed_fingerprints WHERE hour >= date_trunc('hour', now()) - make_interval(days => $1)
+         GROUP BY ip ORDER BY n DESC LIMIT 15`,
+        [days],
+      ),
     ]);
-    send(res, 200, { days, totals: totals[0], daily, topJa4, topAgents, topIps, rules });
+    send(res, 200, { days, totals: totals[0], daily, topJa4, topAgents, topIps, rules, notSaved: { byTier: notSavedByTier, topIps: notSavedIps } });
   });
 
   router.get("/api/v1/admin/fingerprints", async (req, res) => {

@@ -105,6 +105,7 @@
       <section class="block"><h2>Self-identified agents</h2><p class="lead">From the User-Agent signature table; “(none)” means no match.</p><div id="top-agents"></div></section>
       <section class="block"><h2>Top client IPs</h2><div id="top-ips"></div></section>
       <section class="block"><h2>Interpretation rules that fired</h2><div id="top-rules"></div></section>
+      <section class="block"><h2>Rate-limited IPs</h2><p class="lead">Counted but not saved: they went over the fast (per minute), medium (per hour) or slow (per day) limit, or the size cap.</p><div id="top-limited"></div></section>
     </div>
 
     <section class="block list-block">
@@ -176,10 +177,11 @@
       });
     }
 
-    function cards(t) {
+    function cards(t, notSaved) {
       var items = [
         [num(t.total), "fingerprints in range"], [num(t.ips), "distinct IPs"], [num(t.ja4s), "distinct JA4s"],
-        [num(t.all_time), "stored, all time"], [bytes(t.table_bytes), "table size (Neon free plan: 1 GB)"]
+        [num(t.all_time), "stored, all time"], [bytes(t.table_bytes), "table size (Neon free plan: 1 GB)"],
+        [num(notSaved), "not saved (rate-limited) in range"]
       ];
       var box = $("cards"); clear(box);
       items.forEach(function (i) { box.appendChild(el("div", { "class": "card" }, [el("div", { "class": "num", text: i[0] }), el("div", { "class": "lbl", text: i[1] })])); });
@@ -280,7 +282,8 @@
     function loadOverview() {
       $("status").textContent = "Loading…"; $("status").className = "muted";
       return api("/api/v1/admin/overview?days=" + state.days).then(function (d) {
-        cards(d.totals); chart(d.daily, d.days);
+        cards(d.totals, d.notSaved.byTier.reduce(function (s, r) { return s + r.n; }, 0)); chart(d.daily, d.days);
+        ranking("top-limited", d.notSaved.topIps, { label: function (r) { return r.ip === "0.0.0.0" ? "(unknown address)" : r.ip; }, sub: function (r) { return "limit: " + r.tiers + " · last " + ts(r.last_hour); }, onPick: function (r) { if (r.ip !== "0.0.0.0") setFilter("ip", r.ip); } });
         ranking("top-ja4", d.topJa4, { label: function (r) { return r.ja4; }, sub: function (r) { return num(r.ips) + " IP" + (r.ips === 1 ? "" : "s") + " · " + (r.ua || "no user agent"); }, onPick: function (r) { setFilter("ja4", r.ja4); } });
         ranking("top-agents", d.topAgents, { label: function (r) { return r.agent; }, sub: function (r) { return r.category; }, onPick: function (r) { if (r.agent !== "(none)") setFilter("agent", r.agent); } });
         ranking("top-ips", d.topIps, { label: function (r) { return r.ip; }, sub: function (r) { return (r.hostname || "no reverse DNS") + " · " + num(r.ja4s) + " JA4 · last " + ts(r.last_seen) + " · " + (r.ua || "no user agent"); }, onPick: function (r) { setFilter("ip", r.ip); } });

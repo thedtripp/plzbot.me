@@ -145,9 +145,18 @@ Code: `src/server/storage/postgres.ts`. Enabled by `PLZBOT_DATABASE_URL` (or `DA
   Anything else is queryable through the jsonb, for example `doc->'request'->>'httpVersion'`.
   The table is created automatically at startup (`CREATE TABLE IF NOT EXISTS`).
 - **Writes never block a request.** Each insert is fire-and-forget; a failed insert is logged and
-  that record is lost. There is no queue, retry, rate limit or retention: records are kept
-  forever, and a full or unreachable database fails silently apart from the log line. Adding
-  observability for this is planned.
+  that record is lost. There is no queue, retry or retention: records are kept forever, and a
+  full or unreachable database fails silently apart from the log line. Adding observability for
+  this is planned.
+- **Rate limits on saving** (`src/server/storage/rateLimit.ts`). Visitors always get their normal
+  response; only the saving is limited. Per visitor (an IPv4 address, or an IPv6 /64), at most 10
+  records per minute (*fast*), 30 per hour (*medium*) and 100 per day (*slow*) are saved, and a
+  record must be under all three. Past a limit it is counted, not stored, in the table
+  `suppressed_fingerprints` (per hour, IP and tier), which the admin page shows. A fifth tier,
+  *size*, stops saving full records while the `fingerprints` table is over 800 MB (checked every
+  5 minutes), so a flood from many addresses cannot fill a small free database. Limits are kept in
+  memory per process and reset on restart. Settings: `PLZBOT_STORE_LIMIT_PER_MINUTE`, `_PER_HOUR`,
+  `_PER_DAY` (0 disables a tier) and `PLZBOT_STORE_MAX_TABLE_MB`.
 - **Size:** about 8 KB for a server-only record as stored (compressed jsonb), plus indexes; a full
   browser record is larger because it adds the browser signals.
 - **Secrets:** the connection string lives only in the environment (`.env` on the VM, which is
