@@ -17,7 +17,12 @@ permissions:
   contents: read
 
 jobs:
+  # Nothing is deployed unless the full test suite passes on the commit that landed on main.
+  test:
+    uses: ./.github/workflows/ci.yml
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
