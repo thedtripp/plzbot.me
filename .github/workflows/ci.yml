@@ -1,0 +1,38 @@
+name: CI
+
+# Runs the full test suite (including the Postgres-backed and real-browser tests) on every pull request
+# and on every push to main. To make a red PR unmergeable, require the `test` check in branch protection.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: plzbot_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PLZBOT_TEST_DATABASE_URL: postgres://postgres:test@127.0.0.1:5432/plzbot_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npx playwright install --with-deps chromium
+      - run: npm run certs # the browser tests need the throwaway dev TLS certificate (certs/ is gitignored)
+      - run: npm test
