@@ -184,13 +184,15 @@ export function registerAdminRoutes(router: Router, config: RuntimeConfig, store
     if (ja4) add((i) => `ja4 = $${i}`, ja4);
     const agent = q.get("agent");
     if (agent) add((i) => `agent = $${i}`, agent);
+    const target = q.get("target");
+    if (target) add((i) => `target = $${i}`, target); // exact match, e.g. "/?probe=<nonce>"
     const host = q.get("host");
     if (host) add((i) => `hostname ILIKE '%' || $${i} || '%' ESCAPE '\\'`, host.replace(/[\\%_]/g, "\\$&"));
     const text = q.get("q");
     if (text) add((i) => `ua ILIKE '%' || $${i} || '%' ESCAPE '\\'`, text.replace(/[\\%_]/g, "\\$&"));
     params.push(limit + 1, offset);
     const rows = await store.query(
-      `${RECENT} SELECT id, seen_at, kind, ip, hostname, host, ja4, ua, agent, agent_category, jsonb_array_length(assessments)::int AS rules
+      `${RECENT} SELECT id, seen_at, kind, ip, hostname, host, target, ja4, ua, agent, agent_category, jsonb_array_length(assessments)::int AS rules
        FROM recent ${where.length ? "WHERE " + where.join(" AND ") : ""} ORDER BY seen_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params,
     );
