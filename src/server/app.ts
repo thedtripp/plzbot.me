@@ -7,6 +7,7 @@ import { SCHEMA_VERSION } from "../shared/schema/types.js";
 import { PUBLIC_DIR } from "./runtime/paths.js";
 import { loadConfig, type RuntimeConfig } from "./runtime/config.js";
 import type { FingerprintStore } from "./storage/postgres.js";
+import { registerAdminRoutes } from "./admin.js";
 
 function json(res: Parameters<Handler>[1], status: number, body: unknown): void {
   res.statusCode = status;
@@ -44,6 +45,8 @@ export function createApp(config: RuntimeConfig = loadConfig(), store: Fingerpri
     store?.save(fp, "client_submit");
     json(res, 200, fp);
   });
+
+  registerAdminRoutes(router, config, store);
 
   router.get("/api/v1/signals", (_req, res) => {
     json(res, 200, { schemaVersion: SCHEMA_VERSION, signals: SIGNAL_CATALOG });

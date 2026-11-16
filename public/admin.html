@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>plzbot.me — fingerprint analysis</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <style nonce="__NONCE__">
+    :root {
+      --k-page: #2a78d6; --k-api: #eb6834; --k-client: #1baf7a;
+      --bar: #2a78d6;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --k-page: #3987e5; --k-api: #d95926; --k-client: #199e70; --bar: #3987e5; }
+    }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin-bottom: 1.25rem; font-size: 0.85rem; }
+    .toolbar select, .filters input, .filters select {
+      font: inherit; padding: 0.35rem 0.5rem; border: 1px solid var(--border); border-radius: 8px;
+      background: var(--bg); color: var(--text);
+    }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem; }
+    .card { background: var(--bg-raised); border: 1px solid var(--border); border-radius: 12px; padding: 0.8rem 1rem; }
+    .card .num { font-size: 1.5rem; font-weight: 650; letter-spacing: -0.01em; }
+    .card .lbl { font-size: 0.75rem; color: var(--text-dim); }
+    .legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; font-size: 0.82rem; margin-bottom: 0.6rem; color: var(--text-dim); }
+    .legend .sw { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 3px; margin-right: 0.35rem; vertical-align: -0.05rem; }
+    .chart-wrap { position: relative; }
+    .chart-wrap svg { width: 100%; height: auto; display: block; }
+    .chart-wrap text { fill: var(--text-faint); font-size: 10px; font-family: var(--sans); }
+    .chart-wrap line.grid { stroke: var(--border); stroke-width: 1; }
+    .tip {
+      position: absolute; pointer-events: none; z-index: 2; background: var(--bg); color: var(--text);
+      border: 1px solid var(--border); border-radius: 8px; padding: 0.4rem 0.6rem; font-size: 0.78rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15); white-space: nowrap;
+    }
+    .tip .t { font-weight: 600; margin-bottom: 0.15rem; }
+    .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.25rem; }
+    .grid2 > section.block { margin-bottom: 0; min-width: 0; }
+    .rank { display: grid; grid-template-columns: minmax(0, 11rem) 1fr 3.2rem; gap: 0.5rem; align-items: center; font-size: 0.8rem; margin: 0.28rem 0; }
+    .rank .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 0.76rem; }
+    .rank .track { background: var(--bg-inset); border-radius: 4px; height: 0.7rem; }
+    .rank .fill { background: var(--bar); height: 100%; border-radius: 0 4px 4px 0; min-width: 2px; }
+    .rank .val { text-align: right; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+    .rank .sub { grid-column: 1 / -1; color: var(--text-faint); font-size: 0.72rem; margin: -0.15rem 0 0.25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    button.link { all: unset; cursor: pointer; color: var(--accent); }
+    button.link:hover { text-decoration: underline; }
+    .filters { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.8rem; font-size: 0.82rem; }
+    .filters input { min-width: 9rem; }
+    table.list { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+    table.list th { text-align: left; color: var(--text-faint); font-weight: 500; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.03em; padding: 0.4rem 0.5rem; }
+    table.list td { padding: 0.4rem 0.5rem; border-top: 1px solid var(--border); vertical-align: top; }
+    table.list tr.row { cursor: pointer; }
+    table.list tr.row:hover { background: var(--bg-inset); }
+    td.mono, td .mono { font-family: var(--mono); font-size: 0.74rem; }
+    td.ua { max-width: 22rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); }
+    .scroll-x { overflow-x: auto; }
+    .kind { display: inline-flex; align-items: center; gap: 0.3rem; }
+    .kind i { width: 0.55rem; height: 0.55rem; border-radius: 2px; display: inline-block; }
+    .list-block { margin-top: 1.25rem; }
+    .detail-json { max-height: 480px; }
+    .muted { color: var(--text-faint); font-size: 0.82rem; }
+    .error { color: var(--bad); font-size: 0.85rem; }
+    details.data-table summary { cursor: pointer; font-size: 0.8rem; color: var(--text-dim); margin-top: 0.5rem; }
+    table.mini { border-collapse: collapse; font-size: 0.76rem; margin-top: 0.4rem; }
+    table.mini th, table.mini td { padding: 0.15rem 0.7rem 0.15rem 0; text-align: right; }
+    table.mini th:first-child, table.mini td:first-child { text-align: left; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <div>
+        <h1>Fingerprint analysis</h1>
+        <p>Private view of every stored fingerprint. Contains visitors' raw IP addresses; do not share screenshots publicly.</p>
+      </div>
+      <nav class="top-nav"><a href="/">Public site</a></nav>
+    </header>
+
+    <div class="toolbar">
+      <label>Time range
+        <select id="days">
+          <option value="1">Last 24 hours</option>
+          <option value="7" selected>Last 7 days</option>
+          <option value="30">Last 30 days</option>
+          <option value="90">Last 90 days</option>
+          <option value="365">Last 365 days</option>
+        </select>
+      </label>
+      <span id="status" class="muted">Loading…</span>
+    </div>
+
+    <div class="cards" id="cards"></div>
+
+    <section class="block">
+      <h2>Fingerprints per day <span class="count">UTC</span></h2>
+      <div class="legend" id="legend"></div>
+      <div class="chart-wrap" id="chart"></div>
+      <details class="data-table"><summary>Show data table</summary><div id="daily-table"></div></details>
+    </section>
+
+    <div class="grid2">
+      <section class="block"><h2>Top JA4 fingerprints</h2><p class="lead">Click one to filter the list below.</p><div id="top-ja4"></div></section>
+      <section class="block"><h2>Self-identified agents</h2><p class="lead">From the User-Agent signature table; “(none)” means no match.</p><div id="top-agents"></div></section>
+      <section class="block"><h2>Top client IPs</h2><div id="top-ips"></div></section>
+      <section class="block"><h2>Interpretation rules that fired</h2><div id="top-rules"></div></section>
+    </div>
+
+    <section class="block list-block">
+      <h2>Fingerprints <span class="count" id="list-count"></span></h2>
+      <div class="filters" id="filters">
+        <select id="f-kind">
+          <option value="">Any kind</option>
+          <option value="page_view">Page view</option>
+          <option value="api_get">API call</option>
+          <option value="client_submit">Browser submission</option>
+        </select>
+        <input id="f-ip" placeholder="Client IP" />
+        <input id="f-ja4" placeholder="JA4" />
+        <input id="f-agent" placeholder="Agent name" />
+        <input id="f-q" placeholder="User-Agent contains…" />
+        <button class="raw-toggle" id="f-clear" type="button">Clear</button>
+      </div>
+      <div class="scroll-x">
+        <table class="list">
+          <thead><tr><th>Time (UTC)</th><th>Kind</th><th>IP</th><th>JA4</th><th>Agent</th><th>Rules</th><th>User-Agent</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <p><button class="raw-toggle" id="more" type="button" hidden>Load more</button></p>
+    </section>
+
+    <section class="block" id="detail-block" hidden>
+      <h2>Fingerprint detail <button class="raw-toggle" id="detail-close" type="button">Close</button></h2>
+      <pre class="raw-json detail-json" id="detail"></pre>
+    </section>
+  </div>
+
+  <script nonce="__NONCE__">
+  (function () {
+    "use strict";
+    // Everything below inserts data with textContent / createTextNode only. Stored values
+    // (user agents, IPs, headers) are attacker-controlled, so never use innerHTML with them.
+    var KINDS = [
+      { id: "page_view", label: "Page view", css: "var(--k-page)" },
+      { id: "api_get", label: "API call", css: "var(--k-api)" },
+      { id: "client_submit", label: "Browser submission", css: "var(--k-client)" }
+    ];
+    var state = { days: 7, offset: 0, limit: 50 };
+    var $ = function (id) { return document.getElementById(id); };
+    var SVGNS = "http://www.w3.org/2000/svg";
+
+    function el(tag, props, kids) {
+      var n = document.createElement(tag);
+      if (props) for (var k in props) { if (k === "text") n.textContent = props[k]; else n.setAttribute(k, props[k]); }
+      (kids || []).forEach(function (c) { if (c) n.appendChild(typeof c === "string" ? document.createTextNode(c) : c); });
+      return n;
+    }
+    function svg(tag, attrs) {
+      var n = document.createElementNS(SVGNS, tag);
+      for (var k in attrs) n.setAttribute(k, attrs[k]);
+      return n;
+    }
+    function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); }
+    function num(n) { return Number(n).toLocaleString("en-US"); }
+    function ts(s) { return new Date(s).toISOString().replace("T", " ").slice(0, 19); }
+    function bytes(n) { n = Number(n); return n > 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.round(n / 1024) + " kB"; }
+    function kindMeta(id) { return KINDS.filter(function (k) { return k.id === id; })[0] || { label: id, css: "var(--text-faint)" }; }
+
+    function api(path) {
+      return fetch(path, { credentials: "same-origin" }).then(function (r) {
+        if (!r.ok) throw new Error(path.split("?")[0] + " failed (" + r.status + ")");
+        return r.json();
+      });
+    }
+
+    function cards(t) {
+      var items = [
+        [num(t.total), "fingerprints in range"], [num(t.ips), "distinct IPs"], [num(t.ja4s), "distinct JA4s"],
+        [num(t.all_time), "stored, all time"], [bytes(t.table_bytes), "table size (Neon free plan: 1 GB)"]
+      ];
+      var box = $("cards"); clear(box);
+      items.forEach(function (i) { box.appendChild(el("div", { "class": "card" }, [el("div", { "class": "num", text: i[0] }), el("div", { "class": "lbl", text: i[1] })])); });
+    }
+
+    function dayList(days) {
+      var out = [], now = new Date(), base = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+      for (var i = days - 1; i >= 0; i--) out.push(new Date(base - i * 86400000).toISOString().slice(0, 10));
+      return out;
+    }
+    function niceMax(v) {
+      if (v <= 4) return 4;
+      var p = Math.pow(10, Math.floor(Math.log10(v))), f = v / p;
+      return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p;
+    }
+    // Rounded top corners only (bars sit on the baseline; stacked segments are 2px apart).
+    function topRounded(x, y, w, h, r) {
+      r = Math.min(r, h, w / 2);
+      return "M" + x + "," + (y + h) + "V" + (y + r) + "Q" + x + "," + y + " " + (x + r) + "," + y + "H" + (x + w - r) + "Q" + (x + w) + "," + y + " " + (x + w) + "," + (y + r) + "V" + (y + h) + "Z";
+    }
+
+    function chart(daily, days) {
+      var list = dayList(days), byDay = {}, totals = { page_view: 0, api_get: 0, client_submit: 0 };
+      list.forEach(function (d) { byDay[d] = { page_view: 0, api_get: 0, client_submit: 0 }; });
+      daily.forEach(function (r) { if (byDay[r.day]) { byDay[r.day][r.kind] = r.n; totals[r.kind] = (totals[r.kind] || 0) + r.n; } });
+
+      var lg = $("legend"); clear(lg);
+      KINDS.forEach(function (k) {
+        var sw = el("span", { "class": "sw" }); sw.style.background = k.css;
+        lg.appendChild(el("span", null, [sw, k.label + " (" + num(totals[k.id]) + ")"]));
+      });
+
+      var W = 760, H = 220, L = 38, R = 6, T = 8, B = 22, iw = W - L - R, ih = H - T - B;
+      var max = niceMax(Math.max.apply(null, list.map(function (d) { return byDay[d].page_view + byDay[d].api_get + byDay[d].client_submit; }).concat([1])));
+      var band = iw / list.length, bw = Math.max(2, Math.min(band * 0.72, 40));
+      var root = svg("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Fingerprints per day, stacked by kind" });
+      for (var g = 0; g <= 4; g++) {
+        var gy = T + ih - (ih * g) / 4;
+        root.appendChild(svg("line", { "class": "grid", x1: L, x2: W - R, y1: gy, y2: gy }));
+        var gt = svg("text", { x: L - 6, y: gy + 3, "text-anchor": "end" }); gt.textContent = num((max * g) / 4); root.appendChild(gt);
+      }
+      var step = Math.ceil(list.length / 10);
+      var tip = el("div", { "class": "tip" }); tip.hidden = true;
+      list.forEach(function (d, i) {
+        var cx = L + band * i + band / 2, x = cx - bw / 2, y = T + ih, segs = KINDS.filter(function (k) { return byDay[d][k.id] > 0; });
+        segs.forEach(function (k, si) {
+          var h = (byDay[d][k.id] / max) * ih, top = si === segs.length - 1;
+          var attrs = { fill: k.css, stroke: "var(--bg-raised)", "stroke-width": 2, "paint-order": "stroke" };
+          y -= h;
+          var s = top ? svg("path", Object.assign({ d: topRounded(x, y, bw, Math.max(h, 1), 4) }, attrs))
+                      : svg("rect", Object.assign({ x: x, y: y, width: bw, height: Math.max(h, 1) }, attrs));
+          root.appendChild(s);
+        });
+        if (i % step === 0 || i === list.length - 1) {
+          var lt = svg("text", { x: cx, y: H - 6, "text-anchor": "middle" }); lt.textContent = d.slice(5); root.appendChild(lt);
+        }
+        var hit = svg("rect", { x: L + band * i, y: T, width: band, height: ih, fill: "transparent" });
+        hit.addEventListener("mousemove", function (ev) {
+          clear(tip);
+          var sum = byDay[d].page_view + byDay[d].api_get + byDay[d].client_submit;
+          tip.appendChild(el("div", { "class": "t", text: d + " · " + num(sum) + " total" }));
+          KINDS.forEach(function (k) { tip.appendChild(el("div", { text: k.label + ": " + num(byDay[d][k.id]) })); });
+          var box = $("chart").getBoundingClientRect();
+          tip.style.left = Math.min(Math.max(ev.clientX - box.left + 12, 0), box.width - 170) + "px";
+          tip.style.top = Math.max(ev.clientY - box.top - 60, 0) + "px";
+          tip.hidden = false;
+        });
+        hit.addEventListener("mouseleave", function () { tip.hidden = true; });
+        root.appendChild(hit);
+      });
+      var wrap = $("chart"); clear(wrap); wrap.appendChild(root); wrap.appendChild(tip);
+
+      // Table view of the same data.
+      var rows = [el("tr", null, [el("th", { text: "Day" })].concat(KINDS.map(function (k) { return el("th", { text: k.label }); })))];
+      list.slice().reverse().forEach(function (d) {
+        rows.push(el("tr", null, [el("td", { text: d })].concat(KINDS.map(function (k) { return el("td", { text: num(byDay[d][k.id]) }); }))));
+      });
+      var dt = $("daily-table"); clear(dt); dt.appendChild(el("table", { "class": "mini" }, rows));
+    }
+
+    function ranking(boxId, rows, opts) {
+      var box = $(boxId); clear(box);
+      if (!rows.length) { box.appendChild(el("p", { "class": "muted", text: "No data in this range." })); return; }
+      var max = Math.max.apply(null, rows.map(function (r) { return r.n; }));
+      rows.forEach(function (r) {
+        var label = opts.label(r), nameNode;
+        if (opts.onPick) {
+          nameNode = el("button", { "class": "link name", type: "button", title: label, text: label });
+          nameNode.addEventListener("click", function () { opts.onPick(r); });
+        } else nameNode = el("span", { "class": "name", title: label, text: label });
+        var fill = el("div", { "class": "fill" }); fill.style.width = (r.n / max) * 100 + "%";
+        box.appendChild(el("div", { "class": "rank" }, [nameNode, el("div", { "class": "track" }, [fill]), el("div", { "class": "val", text: num(r.n) }), opts.sub && opts.sub(r) ? el("div", { "class": "sub", text: opts.sub(r) }) : null]));
+      });
+    }
+
+    function setFilter(name, value) { $("f-" + name).value = value || ""; loadList(true); $("rows").scrollIntoView({ behavior: "smooth", block: "start" }); }
+
+    function loadOverview() {
+      $("status").textContent = "Loading…"; $("status").className = "muted";
+      return api("/api/v1/admin/overview?days=" + state.days).then(function (d) {
+        cards(d.totals); chart(d.daily, d.days);
+        ranking("top-ja4", d.topJa4, { label: function (r) { return r.ja4; }, sub: function (r) { return num(r.ips) + " IP" + (r.ips === 1 ? "" : "s") + " · " + (r.ua || "no user agent"); }, onPick: function (r) { setFilter("ja4", r.ja4); } });
+        ranking("top-agents", d.topAgents, { label: function (r) { return r.agent; }, sub: function (r) { return r.category; }, onPick: function (r) { if (r.agent !== "(none)") setFilter("agent", r.agent); } });
+        ranking("top-ips", d.topIps, { label: function (r) { return r.ip; }, sub: function (r) { return num(r.ja4s) + " JA4 · last " + ts(r.last_seen) + " · " + (r.ua || "no user agent"); }, onPick: function (r) { setFilter("ip", r.ip); } });
+        ranking("top-rules", d.rules, { label: function (r) { return r.id; }, sub: function (r) { return r.confidence + " confidence"; } });
+        $("status").textContent = "Updated " + new Date().toLocaleTimeString();
+      }).catch(function (e) { $("status").textContent = e.message; $("status").className = "error"; });
+    }
+
+    function query() {
+      var p = new URLSearchParams({ days: state.days, limit: state.limit, offset: state.offset });
+      [["kind", "f-kind"], ["ip", "f-ip"], ["ja4", "f-ja4"], ["agent", "f-agent"], ["q", "f-q"]].forEach(function (f) { var v = $(f[1]).value.trim(); if (v) p.set(f[0], v); });
+      return p.toString();
+    }
+
+    function loadList(reset) {
+      if (reset) { state.offset = 0; clear($("rows")); }
+      return api("/api/v1/admin/fingerprints?" + query()).then(function (d) {
+        d.rows.forEach(function (r) {
+          var km = kindMeta(r.kind), sw = el("i"); sw.style.background = km.css;
+          var tr = el("tr", { "class": "row" }, [
+            el("td", { "class": "mono", text: ts(r.seen_at) }),
+            el("td", null, [el("span", { "class": "kind" }, [sw, km.label])]),
+            el("td", { "class": "mono", text: r.ip || "" }),
+            el("td", { "class": "mono", text: r.ja4 || "—" }),
+            el("td", { text: r.agent || r.agent_category || "" }),
+            el("td", { text: String(r.rules) }),
+            el("td", { "class": "ua", title: r.ua || "", text: r.ua || "" })
+          ]);
+          tr.addEventListener("click", function () { showDetail(r.id); });
+          $("rows").appendChild(tr);
+        });
+        state.offset += d.rows.length;
+        $("more").hidden = !d.hasMore;
+        $("list-count").textContent = num(state.offset) + (d.hasMore ? "+" : "") + " shown";
+        if (reset && !d.rows.length) $("rows").appendChild(el("tr", null, [el("td", { colspan: 7, "class": "muted", text: "No matching fingerprints." })]));
+      }).catch(function (e) { $("list-count").textContent = e.message; });
+    }
+
+    function showDetail(id) {
+      api("/api/v1/admin/fingerprint?id=" + encodeURIComponent(id)).then(function (d) {
+        $("detail").textContent = JSON.stringify(d, null, 2);
+        $("detail-block").hidden = false;
+        $("detail-block").scrollIntoView({ behavior: "smooth", block: "start" });
+      }).catch(function (e) { $("detail").textContent = e.message; $("detail-block").hidden = false; });
+    }
+
+    $("days").addEventListener("change", function () { state.days = Number($("days").value); loadOverview(); loadList(true); });
+    $("more").addEventListener("click", function () { loadList(false); });
+    $("detail-close").addEventListener("click", function () { $("detail-block").hidden = true; });
+    $("f-clear").addEventListener("click", function () { ["f-kind", "f-ip", "f-ja4", "f-agent", "f-q"].forEach(function (i) { $(i).value = ""; }); loadList(true); });
+    var timer;
+    ["f-ip", "f-ja4", "f-agent", "f-q"].forEach(function (i) { $(i).addEventListener("input", function () { clearTimeout(timer); timer = setTimeout(function () { loadList(true); }, 350); }); });
+    $("f-kind").addEventListener("change", function () { loadList(true); });
+
+    loadOverview();
+    loadList(true);
+  })();
+  </script>
+</body>
+</html>

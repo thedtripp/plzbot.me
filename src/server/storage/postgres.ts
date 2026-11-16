@@ -9,6 +9,8 @@ export type FingerprintKind = "page_view" | "api_get" | "client_submit";
 export interface FingerprintStore {
   /** Fire-and-forget: never throws and never blocks the request. */
   save(fp: Fingerprint, kind: FingerprintKind): void;
+  /** Read-only helper for the analysis page. Waits for the table to exist. */
+  query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]>;
   close(): Promise<void>;
 }
 
@@ -38,7 +40,7 @@ function clientIp(fp: Fingerprint): string | null {
 
 export function createStore(config: RuntimeConfig, log: (msg: string) => void): FingerprintStore | null {
   if (!config.databaseUrl) return null;
-  const pool = new pg.Pool({ connectionString: config.databaseUrl, max: 4, connectionTimeoutMillis: 5000 });
+  const pool = new pg.Pool({ connectionString: config.databaseUrl, max: 4, connectionTimeoutMillis: 5000, statement_timeout: 15_000 });
   pool.on("error", (err) => log(`[store] ${err.message}`));
 
   let schemaReady: Promise<unknown> | null = null;
@@ -72,6 +74,10 @@ export function createStore(config: RuntimeConfig, log: (msg: string) => void): 
           ),
         )
         .catch((err) => log(`[store] could not save fingerprint ${fp.fingerprintId}: ${err.message}`));
+    },
+    async query(sql, params = []) {
+      await ensureSchema();
+      return (await pool.query(sql, params)).rows;
     },
     close: () => pool.end().catch(() => {}),
   };
