@@ -5,6 +5,7 @@ import { createApp } from "./app.js";
 import { FrontProxy } from "./tls-capture/frontProxy.js";
 import { loadConfig, type RuntimeConfig } from "./runtime/config.js";
 import { startAcmeHttpServer, watchCertificates } from "./runtime/acmeHttp.js";
+import { createStore, type FingerprintStore } from "./storage/postgres.js";
 
 const log = (msg: string) => console.log(msg);
 
@@ -26,8 +27,8 @@ function requireCerts(config: RuntimeConfig): { cert: Buffer; key: Buffer } {
  * terminates TLS and proxies to us. The TLS/JA3/JA4 half of the fingerprint is reported as
  * unavailable in this mode; everything else (headers, Client Hints, browser signals) works.
  */
-async function startHttpMode(config: RuntimeConfig): Promise<void> {
-  const app = createApp(config);
+async function startHttpMode(config: RuntimeConfig, store: FingerprintStore | null): Promise<void> {
+  const app = createApp(config, store);
   const server = http.createServer(app);
   await new Promise<void>((resolve) => server.listen(config.port, config.host, resolve));
   log(`plzbot.me listening in HTTP mode on http://${config.host}:${config.port}`);
@@ -40,7 +41,8 @@ async function startHttpMode(config: RuntimeConfig): Promise<void> {
 
   const shutdown = () => {
     log("\nShutting down...");
-    server.close(() => process.exit(0));
+    server.close();
+    void (store?.close() ?? Promise.resolve()).finally(() => process.exit(0));
     setTimeout(() => process.exit(0), 2000).unref();
   };
   process.on("SIGINT", shutdown);
@@ -52,9 +54,9 @@ async function startHttpMode(config: RuntimeConfig): Promise<void> {
  * the ClientHello is observable (docs/TLS_CAPTURE.md). Optionally also runs a plain-HTTP
  * helper (PLZBOT_HTTP_PORT) for ACME challenges + redirects, and hot-reloads renewed certs.
  */
-async function startTlsMode(config: RuntimeConfig): Promise<void> {
+async function startTlsMode(config: RuntimeConfig, store: FingerprintStore | null): Promise<void> {
   const { cert, key } = requireCerts(config);
-  const app = createApp(config);
+  const app = createApp(config, store);
 
   const internalServer = http2.createSecureServer({
     cert,
@@ -96,6 +98,7 @@ async function startTlsMode(config: RuntimeConfig): Promise<void> {
     acmeServer?.close();
     await frontProxy.close();
     internalServer.close();
+    await store?.close();
     process.exit(0);
   };
   process.on("SIGINT", shutdown);
@@ -104,8 +107,10 @@ async function startTlsMode(config: RuntimeConfig): Promise<void> {
 
 async function main(): Promise<void> {
   const config = loadConfig();
-  if (config.mode === "http") await startHttpMode(config);
-  else await startTlsMode(config);
+  const store = createStore(config, (m) => console.error(m));
+  if (!store) log("No PLZBOT_DATABASE_URL set: fingerprints are NOT being saved.");
+  if (config.mode === "http") await startHttpMode(config, store);
+  else await startTlsMode(config, store);
 }
 
 main().catch((err) => {

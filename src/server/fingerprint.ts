@@ -40,9 +40,10 @@ async function buildServerHalf(req: IncomingMessage, config: RuntimeConfig): Pro
   const ctx = getRequestContext(req, config);
   const ip2asn = getIp2AsnTable(config.ip2asnPath, (m) => console.error(`[ip2asn] ${m}`));
 
+  // Run every synchronous collector before the first await: the reverse-DNS lookup below can
+  // take up to its timeout, and background callers (page-view recording) may finish after the
+  // response and its HTTP/2 stream are gone.
   const network = collectNetwork(req, connectionMeta, ctx, ip2asn);
-  network.push(await collectReverseDns(ctx.clientIp));
-
   const server = {
     network,
     tls: collectTls(req, connectionMeta),
@@ -50,6 +51,7 @@ async function buildServerHalf(req: IncomingMessage, config: RuntimeConfig): Pro
     http2: collectHttp2(req),
     clientHints: collectClientHints(req),
   };
+  network.push(await collectReverseDns(ctx.clientIp));
 
   const request = {
     method: req.method ?? "",

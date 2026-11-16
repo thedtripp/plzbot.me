@@ -31,6 +31,8 @@ export interface RuntimeConfig {
   publicOrigin: string | null;
   /** Optional path to an iptoasn.com-style TSV (range_start range_end AS_number country AS_description). */
   ip2asnPath: string | null;
+  /** Postgres connection string. Unset = fingerprints are not stored. Treat as a secret. */
+  databaseUrl: string | null;
 }
 
 function envInt(env: NodeJS.ProcessEnv, name: string, fallback: number): number {
@@ -71,5 +73,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): RuntimeConfig 
     trustedProxy: parseTrustedProxy(env.PLZBOT_TRUST_PROXY, env.PLZBOT_CLIENT_IP_HEADER),
     publicOrigin: env.PLZBOT_PUBLIC_ORIGIN?.replace(/\/+$/, "") || null,
     ip2asnPath: env.PLZBOT_IP2ASN_PATH || null,
+    databaseUrl: env.PLZBOT_DATABASE_URL || env.DATABASE_URL || null,
   };
 }
