@@ -135,11 +135,9 @@ rm deploy_key deploy_key.pub
 **Revoking access:** delete the `plzbot-github-deploy` line from `~/.ssh/authorized_keys` on the VM
 and remove the four secrets. **Rolling back by hand:** `git reset --hard <good commit>` in
 `~/plzbot.me`, then `docker compose build plzbot && docker compose up -d`; the next merge to
-`main` fast-forwards from there. The workflow runs the full test suite (`.github/workflows/ci.yml`:
-typecheck, unit, Postgres and real-browser tests) first and deploys only if it passes. The same
-suite runs on every pull request; to make a red PR unmergeable, require the `test` check under
-Settings > Branches > branch protection for `main`. The health check and rollback are the last
-safety net after that.
+`main` fast-forwards from there. The workflow deploys whatever lands on `main` without running the
+test suite first, so merge only what you have reviewed (the health check and rollback are the
+safety net, not a substitute for review).
 
 ### Host-specific compose settings (`docker-compose.override.yml`)
 
