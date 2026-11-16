@@ -7,7 +7,7 @@ enforced implementation. If they ever disagree, the code is a bug.
 
 The schema must stay extensible, preserve raw data, separate normalization from derivation from
 interpretation, explicitly represent absence, work for partial (non-browser) clients, and be
-persistence-ready without being persisted in the MVP. Everything below is in service of those
+persistence-ready (it is stored unchanged as one jsonb document; see `docs/ARCHITECTURE.md`). Everything below is in service of those
 goals; where a choice trades one goal against another, that trade-off is called out.
 
 ## The observation pipeline
@@ -167,9 +167,9 @@ interface Fingerprint {
   still be present but empty — in practice this MVP's collector always attempts every group and
   records per-observation status, so per-group emptiness shouldn't occur, but the type allows it
   rather than assuming.
-- **`fingerprintId` is explicitly documented as ephemeral**, not a cross-request device
-  identifier, to avoid the schema itself implying persistent tracking capability that the MVP
-  deliberately does not implement.
+- **`fingerprintId` identifies one fingerprint of one request**, not a device or visitor. It is
+  the primary key of the stored row, but it is never reused or carried across requests, so the
+  schema does not itself provide cross-request tracking.
 
 ## Extensibility rules for future work
 
@@ -181,11 +181,11 @@ interface Fingerprint {
 4. New signal *category* (e.g. a future behavioral-biometrics category) → add one string to the
    `SignalCategory` union and one array to the relevant tree in `Fingerprint`. This is the only
    kind of change that touches the top-level type, and it's additive.
-5. Persistence (future): a `Fingerprint` is already a plain JSON-serializable tree with no
-   circular references and no server-only handles (sockets, streams) leaking into it — collectors
-   are required to copy out primitive values, never pass through live objects — so persisting one
-   is "insert this document," not a redesign. `fingerprintId` would become a foreign key; nothing
-   else changes.
+5. Persistence (implemented): a `Fingerprint` is a plain JSON-serializable tree with no circular
+   references and no server-only handles (sockets, streams) leaking into it — collectors are
+   required to copy out primitive values, never pass through live objects — so persisting one is
+   "insert this document" (`src/server/storage/postgres.ts`). Because stored documents keep the
+   `schemaVersion` they were written with, rules that read old rows must tolerate older shapes.
 6. Population-level rarity/uniqueness (future): would consume `derived[]` values (which are
    already the canonicalized, comparable form) rather than raw observations, since raw values are
    too heterogeneous (arbitrary header casing, etc.) to aggregate directly.

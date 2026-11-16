@@ -15,7 +15,7 @@ decision doesn't need to be re-litigated later.
 | TLS ClientHello capture | Hand-rolled raw-socket interceptor (`src/server/tls-capture/`) | Node's `tls` module terminates and parses the handshake internally and does not expose the raw ClientHello bytes through any public API. JA3/JA4 require the *raw, unparsed* cipher/extension list in wire order, so we peek the first TLS record off the raw `net.Socket` before Node's TLS engine consumes it, parse it ourselves, then hand the (rewound) socket to the real TLS server. See `docs/TLS_CAPTURE.md`. |
 | Client bundle | esbuild, no framework, plain TS → single IIFE script | The collector must run automatically on load with no dependencies that could themselves become a fingerprinting confound (e.g. a framework's own feature probing). Kept dependency-free by design. |
 | Tests | Vitest + Supertest | Vitest runs native TS/ESM without a separate build step; Supertest drives the Express app in-process for HTTP-level assertions. Non-Node clients (curl, Python `requests`) are exercised via real subprocess calls against a running server in integration tests, not mocked. |
-| Persistence | None (MVP) | Explicitly out of scope; schema is designed so a storage layer can serialize a `Fingerprint` document unchanged later (see SCHEMA.md "Future persistence"). |
+| Persistence | Optional Postgres (`pg`) | Off unless `PLZBOT_DATABASE_URL` is set. Stores each `Fingerprint` document unchanged as jsonb; see "Stored fingerprints" below. |
 
 ## Signal availability by environment
 
@@ -83,8 +83,9 @@ HTTP, TLS, HTTP/2) are available on *every* request, not just the first, so
 against that POST request itself, and merges the result with the client-submitted observations
 in the body. Both requests come from the same browser moments apart, so the server-observed
 half is effectively identical either way — collecting it twice is cheap and avoids stateful
-correlation, cookies, and TTL bookkeeping entirely. This keeps the service fully stateless per
-spec §9.
+correlation, cookies, and TTL bookkeeping entirely. The request path stays stateless: nothing
+is carried between requests, and saving a fingerprint (below) is a side effect that never
+affects the response.
 
 ## Module layout
 
@@ -120,9 +121,9 @@ tests/
 
 ## Security & privacy defaults (applies from Phase 2 onward)
 
-- No persistence and no session state at all: fingerprints exist only for the lifetime of a
-  single request/response cycle. Nothing is written to disk or a database, and no cookies are
-  set (see "No session/cookie correlation is used" above).
+- No session state and no cookies. Fingerprints are saved only when `PLZBOT_DATABASE_URL` is set;
+  without it nothing is written anywhere (see "Stored fingerprints" below). When storage is on,
+  it includes raw client IPs and nothing is ever deleted, which the public privacy line states.
 - `X-Forwarded-For` and similar proxy headers are parsed and *shown*, but labeled untrusted
   unless the deployment explicitly configures a trusted proxy count/allowlist (unset by default,
   so in dev these headers — if present — are shown as "client-suppliable, unverified").
@@ -130,3 +131,26 @@ tests/
   the field but the collection method is reported as `not_configured` rather than silently
   omitted, per the "never make it look like a signal was never tested" requirement.
 - No credentials, auth secrets, or unrelated PII are ever collected.
+
+## Stored fingerprints
+
+Code: `src/server/storage/postgres.ts`. Enabled by `PLZBOT_DATABASE_URL` (or `DATABASE_URL`).
+
+- **What is saved:** every fingerprint the server builds, tagged with a `kind`: `page_view`
+  (a request for `/` or `/index.html`, so crawlers and agents that never run JavaScript still
+  leave a record), `api_get` (`GET /api/v1/fingerprint`) and `client_submit` (the browser's
+  `POST /api/v1/fingerprint/client`). Static files and `/healthz` are not saved.
+- **Table `fingerprints`:** `id` (the document's `fingerprintId`), `seen_at`, `kind`, `client_ip`
+  (`inet`, raw), `ja4`, and `doc`, the full fingerprint as jsonb including `interpretation`.
+  Anything else is queryable through the jsonb, for example `doc->'request'->>'httpVersion'`.
+  The table is created automatically at startup (`CREATE TABLE IF NOT EXISTS`).
+- **Writes never block a request.** Each insert is fire-and-forget; a failed insert is logged and
+  that record is lost. There is no queue, retry, rate limit or retention: records are kept
+  forever, and a full or unreachable database fails silently apart from the log line. Adding
+  observability for this is planned.
+- **Size:** about 8 KB for a server-only record as stored (compressed jsonb), plus indexes; a full
+  browser record is larger because it adds the browser signals.
+- **Secrets:** the connection string lives only in the environment (`.env` on the VM, which is
+  gitignored). It is never logged or returned by an endpoint.
+- **Tests:** `tests/integration/storage.test.ts` runs only when `PLZBOT_TEST_DATABASE_URL` points at
+  a throwaway Postgres (it truncates the table).
