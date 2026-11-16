@@ -29,6 +29,8 @@ fingerprint. HTTP mode is the fallback for zero-ops hosting.
 | `PLZBOT_CLIENT_IP_HEADER` | unset | A header your proxy guarantees to set to the client IP (`cf-connecting-ip`, `fly-client-ip`, `true-client-ip`). Preferred over XFF. |
 | `PLZBOT_PUBLIC_ORIGIN` | unset | `https://your.host` — used for redirects and the text report. |
 | `PLZBOT_IP2ASN_PATH` | unset | Optional path to an iptoasn.com TSV for offline ASN/org lookups (free, no account). |
+| `PLZBOT_DATABASE_URL` (or `DATABASE_URL`) | unset | Postgres connection string. Set = every fingerprint is saved (kept forever); unset = nothing is stored. A secret: keep it in `.env` only. |
+| `PLZBOT_ADMIN_PASSWORD` | unset | 12+ characters. Enables the private analysis page at `/admin` (HTTP Basic auth, any username) over the stored fingerprints. Unset = `/admin` returns 404. Ten wrong attempts lock an IP out for 5 minutes. |
 
 ## Option A — free VM, full TLS fingerprinting (recommended)
 

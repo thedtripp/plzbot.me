@@ -24,6 +24,8 @@ services:
       PLZBOT_IP2ASN_PATH: ${PLZBOT_IP2ASN_PATH:-}
       # Postgres connection string (e.g. from Neon). Unset = fingerprints are not saved. Keep it in .env only.
       PLZBOT_DATABASE_URL: ${PLZBOT_DATABASE_URL:-}
+      # Password for the private analysis page at /admin (12+ chars). Unset = /admin does not exist.
+      PLZBOT_ADMIN_PASSWORD: ${PLZBOT_ADMIN_PASSWORD:-}
     volumes:
       - letsencrypt:/etc/letsencrypt:ro
       - acme-webroot:/acme-webroot:ro

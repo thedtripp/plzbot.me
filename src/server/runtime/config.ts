@@ -33,6 +33,8 @@ export interface RuntimeConfig {
   ip2asnPath: string | null;
   /** Postgres connection string. Unset = fingerprints are not stored. Treat as a secret. */
   databaseUrl: string | null;
+  /** Password for the private analysis page (/admin). Unset = the page and its API do not exist (404). */
+  adminPassword: string | null;
 }
 
 function envInt(env: NodeJS.ProcessEnv, name: string, fallback: number): number {
@@ -62,6 +64,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): RuntimeConfig 
   // PaaS platforms conventionally inject PORT; honor it when PLZBOT_PORT isn't set.
   const port = env.PLZBOT_PORT ? envInt(env, "PLZBOT_PORT", 0) : env.PORT ? envInt(env, "PORT", 0) : mode === "tls" ? 8443 : 8080;
 
+  const adminPassword = env.PLZBOT_ADMIN_PASSWORD || null;
+  if (adminPassword !== null && adminPassword.length < 12) {
+    throw new Error("PLZBOT_ADMIN_PASSWORD must be at least 12 characters (generate one with: openssl rand -base64 18)");
+  }
+
   return {
     mode,
     host: env.PLZBOT_HOST ?? (mode === "tls" ? "127.0.0.1" : "0.0.0.0"),
@@ -74,5 +81,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): RuntimeConfig 
     publicOrigin: env.PLZBOT_PUBLIC_ORIGIN?.replace(/\/+$/, "") || null,
     ip2asnPath: env.PLZBOT_IP2ASN_PATH || null,
     databaseUrl: env.PLZBOT_DATABASE_URL || env.DATABASE_URL || null,
+    adminPassword,
   };
 }
