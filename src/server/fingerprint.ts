@@ -34,7 +34,10 @@ export interface ClientSubmission {
   automation?: Observation[];
 }
 
-async function buildServerHalf(req: IncomingMessage, config: RuntimeConfig): Promise<Pick<Fingerprint, "server" | "request">> {
+async function buildServerHalf(
+  req: IncomingMessage,
+  config: RuntimeConfig,
+): Promise<Pick<Fingerprint, "server" | "request" | "derived">> {
   const socket = req.socket as TLSSocket;
   const connectionMeta = getConnectionMeta(socket);
   const ctx = getRequestContext(req, config);
@@ -51,6 +54,9 @@ async function buildServerHalf(req: IncomingMessage, config: RuntimeConfig): Pro
     http2: collectHttp2(req),
     clientHints: collectClientHints(req),
   };
+  // Derived values read the connection's TLS metadata, which disappears once the client closes
+  // the socket, so compute them now, before the (possibly slow) reverse-DNS await below.
+  const derived = [...deriveTls(connectionMeta), ...deriveUserAgent(server.http), ...deriveClientSignature(server.http)];
   network.push(await collectReverseDns(ctx.clientIp));
 
   const request = {
@@ -61,13 +67,7 @@ async function buildServerHalf(req: IncomingMessage, config: RuntimeConfig): Pro
     receivedAt: new Date().toISOString(),
   };
 
-  return { server, request };
-}
-
-function deriveAll(fp: Pick<Fingerprint, "server">, req: IncomingMessage) {
-  const socket = req.socket as TLSSocket;
-  const connectionMeta = getConnectionMeta(socket);
-  return [...deriveTls(connectionMeta), ...deriveUserAgent(fp.server.http), ...deriveClientSignature(fp.server.http)];
+  return { server, request, derived };
 }
 
 function isEmptyClientSignals(payload: ClientSubmission | undefined): boolean {
@@ -94,7 +94,7 @@ export async function buildFingerprint(
   config?: RuntimeConfig,
 ): Promise<Fingerprint> {
   const cfg = config ?? (defaultConfig ??= loadConfig());
-  const { server, request } = await buildServerHalf(req, cfg);
+  const { server, request, derived } = await buildServerHalf(req, cfg);
 
   const client: ClientSignals | null = isEmptyClientSignals(clientPayload)
     ? null
@@ -119,7 +119,7 @@ export async function buildFingerprint(
     request,
     server,
     client,
-    derived: deriveAll({ server }, req),
+    derived,
     interpretation: { assessments: [] },
   };
 
