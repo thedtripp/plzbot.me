@@ -5,6 +5,7 @@ public/collector.js
 public/collector.js.map
 certs/
 .env
+.env.local
 *.log
 .DS_Store
 probe-output/
@@ -15,3 +16,4 @@ course/tools/__pycache__/
 
 # Per-host compose settings (see deploy/README.md)
 docker-compose.override.yml
+.neon
