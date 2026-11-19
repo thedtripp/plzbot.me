@@ -15,6 +15,7 @@
       </div>
       <nav class="top-nav">
         <a href="/">Fingerprint</a>
+        <a href="/behavior">Behavior</a>
         <a href="/docs.html" class="active">How it works</a>
         <a href="/api/v1">API</a>
         <a href="https://www.ddtripp.com/plzbot.me/">About</a>
@@ -95,8 +96,10 @@
     </section>
 
     <section class="block">
-      <h2 id="behavioral">Behavioral fingerprinting (not implemented)</h2>
-      <p>Mouse trajectories, keystroke dynamics, scroll behavior, and interaction timing are a distinct fingerprinting/detection family that this app deliberately does not implement — it requires sustained user interaction to collect, which doesn't fit a single-page "look at your fingerprint" tool, and raises its own separate privacy considerations. The <a href="#schema">canonical schema</a> this app uses was designed so a future <code>behavioral</code> signal category could be added without disturbing anything that already exists (see <code>docs/SCHEMA.md</code>, "Extensibility rules").</p>
+      <h2 id="behavioral">Behavioral analysis</h2>
+      <p>The <a href="/behavior">behavior page</a> asks you to fill in a short form while it records <em>how</em> you do it: pointer positions and timing, key press and release timing, paste and input events, scroll position over time, and whether each event is <code>isTrusted</code>. It never records which keys you press or what you type. The trace is sent to <code>POST /api/v1/behavior</code>, which computes features and returns a hedged verdict (<code>likely_human</code>, <code>likely_automated</code>, <code>inconclusive</code>, or <code>not_enough_interaction</code>) together with the evidence behind it.</p>
+      <p>The signals come from published research on how AI browsing agents differ from people (notably <a href="https://arxiv.org/abs/2605.01247" target="_blank" rel="noopener">FP-Agent</a>, which found that pasting, mouse-path curvature, key timing and scroll patterns separate agents from humans) and from vendor write-ups. Typical agent tells are a cursor that jumps straight to its target, fields filled with no key presses, keys sent a few milliseconds apart, and instant scrolling. Each signal is documented in the <a href="/api/v1/signals">signal catalog</a> with the way it can be wrong.</p>
+      <p>Thresholds are first guesses, not calibrated against real traffic, and a determined bot can imitate human timing, while some people (assistive technology, autofill, password managers, unusual devices) look automated. Treat the verdict as evidence, not proof.</p>
     </section>
 
     <section class="block">
@@ -113,7 +116,7 @@
 
     <section class="block">
       <h2 id="privacy">Privacy</h2>
-      <p>plzbot.me saves the fingerprints it observes indefinitely.</p>
+      <p>plzbot.me saves the fingerprints it observes indefinitely. The behavior page analyzes the interaction trace you submit and currently does not store it.</p>
     </section>
 
     <footer class="page-footer">

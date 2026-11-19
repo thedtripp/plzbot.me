@@ -28,7 +28,8 @@ export type SignalCategory =
   | "browser.media"
   | "browser.storage"
   | "browser.apis"
-  | "browser.automation";
+  | "browser.automation"
+  | "browser.behavior";
 
 export interface Observation<Raw = unknown, Normalized = unknown> {
   id: string;

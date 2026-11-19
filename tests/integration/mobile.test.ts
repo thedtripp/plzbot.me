@@ -27,7 +27,7 @@ afterAll(async () => {
 });
 
 describe.each([320, 390])("phone layout at %ipx wide", (width) => {
-  it.each(["/", "/docs.html"])("%s does not scroll sideways", async (route) => {
+  it.each(["/", "/docs.html", "/behavior"])("%s does not scroll sideways", async (route) => {
     const context = await browser.newContext({ viewport: { width, height: 800 }, isMobile: true, deviceScaleFactor: 2 });
     const page = await context.newPage();
     await page.goto(base + route, { waitUntil: "networkidle" });

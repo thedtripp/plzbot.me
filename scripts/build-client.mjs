@@ -15,3 +15,14 @@ await esbuild.build({
   minify: process.env.NODE_ENV === "production",
   logLevel: "info",
 });
+
+await esbuild.build({
+  entryPoints: [path.join(repoRoot, "src", "client", "behavior", "index.ts")],
+  bundle: true,
+  outfile: path.join(repoRoot, "public", "behavior.js"),
+  format: "iife",
+  target: ["es2020"],
+  sourcemap: true,
+  minify: process.env.NODE_ENV === "production",
+  logLevel: "info",
+});

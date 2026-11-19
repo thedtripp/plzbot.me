@@ -8,6 +8,9 @@ import { PUBLIC_DIR } from "./runtime/paths.js";
 import { loadConfig, type RuntimeConfig } from "./runtime/config.js";
 import type { FingerprintStore } from "./storage/postgres.js";
 import { registerAdminRoutes } from "./admin.js";
+import { parseTrace } from "./behavior/validate.js";
+import { computeFeatures } from "./behavior/features.js";
+import { assess } from "./behavior/rules.js";
 
 function json(res: Parameters<Handler>[1], status: number, body: unknown): void {
   res.statusCode = status;
@@ -46,6 +49,23 @@ export function createApp(config: RuntimeConfig = loadConfig(), store: Fingerpri
     json(res, 200, fp);
   });
 
+  router.get("/behavior", (req, res) => {
+    req.url = "/behavior.html" + (req.url ?? "").slice("/behavior".length);
+    staticHandler(req, res);
+  });
+
+  router.post("/api/v1/behavior", async (req, res) => {
+    let trace;
+    try {
+      trace = parseTrace(await readJsonBody(req));
+    } catch (err) {
+      json(res, 400, { error: `Invalid behavior trace: ${(err as Error).message}` });
+      return;
+    }
+    const features = computeFeatures(trace);
+    json(res, 200, { ...assess(features), features });
+  });
+
   registerAdminRoutes(router, config, store);
 
   router.get("/api/v1/signals", (_req, res) => {
@@ -58,6 +78,7 @@ export function createApp(config: RuntimeConfig = loadConfig(), store: Fingerpri
       endpoints: [
         { method: "GET", path: "/api/v1/fingerprint", description: "Server-observed fingerprint for the current request." },
         { method: "POST", path: "/api/v1/fingerprint/client", description: "Submit browser-collected observations; returns the combined fingerprint." },
+        { method: "POST", path: "/api/v1/behavior", description: "Submit an interaction trace ({trace:{events,...}}); returns a hedged human/automated verdict with cited evidence." },
         { method: "GET", path: "/api/v1/signals", description: "Educational catalog of known signal ids." },
       ],
       documentation: "See docs/API.md in the repository.",
@@ -81,7 +102,7 @@ export function createApp(config: RuntimeConfig = loadConfig(), store: Fingerpri
   // fresh connection legitimately won't have them yet.
   return (req, res) => {
     // Also record page requests, so a crawler or agent that never runs JS still leaves a record.
-    if (store && req.method === "GET" && ["/", "/index.html"].includes((req.url ?? "").split("?")[0]!)) {
+    if (store && req.method === "GET" && ["/", "/index.html", "/behavior", "/behavior.html"].includes((req.url ?? "").split("?")[0]!)) {
       buildFingerprint(req, undefined, config).then((fp) => store.save(fp, "page_view"), () => {});
     }
     res.setHeader("Accept-CH", ACCEPT_CH_VALUE);

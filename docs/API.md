@@ -50,6 +50,20 @@ half and the interpretation layer's output, which is recomputed against the comb
 Malformed input never crashes the process — see `src/server/http/router.ts`'s per-route error
 handling.
 
+### `POST /api/v1/behavior`
+
+Analyzes an interaction trace recorded by the behavior page (`public/behavior.html`, recorder in
+`src/client/behavior/`) and returns a hedged human/automated verdict. Nothing is stored yet.
+
+**Request:** `{"trace": {"events": [...], "dropped": 0, "danglingKeydowns": 0, "viewport": {"w": 1280, "h": 800}}}`.
+Each event is `{t, k, tr, f?, x?, y?, b?, kc?, h?, it?, d?}` (see `src/shared/behavior.ts`): `t` ms since
+start, `k` event type, `tr` 1 if `isTrusted`, `f` field id, `kc` key *class* (never the key), `h` key hold
+time, `it` `inputType`, `d` scroll position. At most 5,000 events; unknown fields are dropped.
+
+**Response:** `200` with `{verdict, automatedWeight, humanWeight, evidence[], features}`. `verdict` is one of
+`likely_automated | likely_human | inconclusive | not_enough_interaction`; each `evidence` item cites the
+`features` ids (documented in `GET /api/v1/signals`) it was computed from. `400` for a malformed trace.
+
 ### `GET /api/v1/signals`
 
 Returns the static educational signal catalog (`src/server/interpret/catalog.ts`): a map from
