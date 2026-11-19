@@ -1,5 +1,6 @@
 import path from "node:path";
 import { REPO_ROOT } from "./paths.js";
+import type { RecaptchaConfig } from "../recaptcha/assess.js";
 
 /**
  * Runtime configuration, all from environment variables so the same build runs unchanged in
@@ -42,6 +43,8 @@ export interface RuntimeConfig {
   storeLimitPerDay: number;
   /** Stop saving full records once the fingerprints table passes this many MB (0 = no cap). Protects a small free-tier database. */
   storeMaxTableMb: number;
+  /** Optional Google reCAPTCHA Enterprise scoring on the behavior page. Null = off, and nothing is sent to Google. */
+  recaptcha: RecaptchaConfig | null;
 }
 
 function envInt(env: NodeJS.ProcessEnv, name: string, fallback: number): number {
@@ -61,6 +64,19 @@ export function parseTrustedProxy(raw: string | undefined, headerRaw: string | u
   const n = Number(raw);
   if (!Number.isInteger(n) || n < 0) throw new Error(`PLZBOT_TRUST_PROXY must be a hop count or true/false, got "${raw}"`);
   return { hops: n, clientIpHeader: header };
+}
+
+/** All three of project id, site key and API key, or none. A half-configured setup fails at startup, not silently per request. */
+export function parseRecaptcha(env: NodeJS.ProcessEnv): RecaptchaConfig | null {
+  const projectId = env.PLZBOT_RECAPTCHA_PROJECT_ID?.trim() ?? "";
+  const siteKey = env.PLZBOT_RECAPTCHA_SITE_KEY?.trim() ?? "";
+  const apiKey = env.PLZBOT_RECAPTCHA_API_KEY?.trim() ?? "";
+  const set = [projectId, siteKey, apiKey].filter(Boolean).length;
+  if (set === 0) return null;
+  if (set !== 3) {
+    throw new Error("reCAPTCHA needs all of PLZBOT_RECAPTCHA_PROJECT_ID, PLZBOT_RECAPTCHA_SITE_KEY and PLZBOT_RECAPTCHA_API_KEY (or none of them)");
+  }
+  return { projectId, siteKey, apiKey, monthlyCap: envInt(env, "PLZBOT_RECAPTCHA_MONTHLY_CAP", 8000) };
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): RuntimeConfig {
@@ -93,5 +109,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): RuntimeConfig 
     storeLimitPerHour: envInt(env, "PLZBOT_STORE_LIMIT_PER_HOUR", 30),
     storeLimitPerDay: envInt(env, "PLZBOT_STORE_LIMIT_PER_DAY", 100),
     storeMaxTableMb: envInt(env, "PLZBOT_STORE_MAX_TABLE_MB", 800),
+    recaptcha: parseRecaptcha(env),
   };
 }

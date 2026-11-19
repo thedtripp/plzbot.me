@@ -44,6 +44,7 @@
           <p>The recording is analyzed on the server to produce the verdict shown after you submit.</p>
           <p>Interaction timings and pointer paths from submissions may be stored indefinitely to study how people and automated agents differ.</p>
           <p>Typed text, selected values and key identities are not stored.</p>
+          <p id="recaptcha-terms" hidden>This page also uses Google reCAPTCHA. Google's script loads when the page opens and receives information about your browser and how you interact with the page, under <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google's privacy policy</a>. Its score is shown separately from this page's own verdict.</p>
           <p>Signals like these are evidence, not proof. A person using an accessibility tool or an unusual device can look automated, and a careful bot can look human.</p>
           <p>Automated agents are welcome here. This page exists to show how they differ.</p>
           <p>There is nothing else to read. Scroll to the end, then continue.</p>
@@ -61,6 +62,10 @@
         <h2>Verdict</h2>
         <div id="verdict"></div>
         <p class="lead" id="weights"></p>
+      </section>
+      <section class="block" id="recaptcha-block" hidden>
+        <h2>Google reCAPTCHA <span class="count">— a separate opinion, not used in the verdict above</span></h2>
+        <div id="recaptcha"></div>
       </section>
       <section class="block">
         <h2>Evidence <span class="count">— what the verdict is based on</span></h2>

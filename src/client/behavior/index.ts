@@ -1,7 +1,8 @@
 import { startRecorder } from "./recorder.js";
 
 interface Evidence { id: string; title: string; statement: string; direction: "automated" | "human"; weight: number; confidence: string; features: string[] }
-interface Result { verdict: string; automatedWeight: number; humanWeight: number; evidence: Evidence[]; features: Record<string, number | boolean | null> }
+interface RecaptchaResult { status: string; score?: number; reasons?: string[]; invalidReason?: string }
+interface Result { recaptcha?: RecaptchaResult; verdict: string; automatedWeight: number; humanWeight: number; evidence: Evidence[]; features: Record<string, number | boolean | null> }
 
 const VERDICTS: Record<string, { label: string; tone: string; note: string }> = {
   likely_automated: { label: "Likely automated", tone: "automated", note: "The interaction shows patterns typical of scripted or agent-driven input." },
@@ -19,6 +20,64 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, cls?: 
 }
 
 const recorder = startRecorder();
+
+// Optional Google reCAPTCHA score. Loads Google's script only if the server has it configured.
+interface GrecaptchaEnterprise { ready(cb: () => void): void; execute(key: string, opts: { action: string }): Promise<string> }
+let recaptchaSetup: { siteKey: string; action: string } | null = null;
+const recaptchaLoaded: Promise<void> = fetch("/api/v1/recaptcha")
+  .then((r) => (r.ok ? r.json() : { enabled: false }))
+  .then((c: { enabled: boolean; siteKey?: string; action?: string }) => {
+    if (!c.enabled || !c.siteKey || !c.action) return;
+    recaptchaSetup = { siteKey: c.siteKey, action: c.action };
+    $("recaptcha-terms").hidden = false;
+    return new Promise<void>((resolve) => {
+      const s = document.createElement("script");
+      s.src = `https://www.google.com/recaptcha/enterprise.js?render=${encodeURIComponent(c.siteKey!)}`;
+      s.async = true;
+      s.onload = () => resolve();
+      s.onerror = () => resolve(); // blocked (ad blocker, offline): carry on without a score
+      document.head.append(s);
+    });
+  })
+  .catch(() => {});
+
+/** A fresh token at submit time (they expire after two minutes), or null if Google's script is off, blocked or slow. */
+async function recaptchaToken(): Promise<string | null> {
+  await recaptchaLoaded;
+  const g = (window as unknown as { grecaptcha?: { enterprise?: GrecaptchaEnterprise } }).grecaptcha?.enterprise;
+  if (!recaptchaSetup || !g) return null;
+  const setup = recaptchaSetup;
+  const run = new Promise<string | null>((resolve) => {
+    try { g.ready(() => g.execute(setup.siteKey, { action: setup.action }).then(resolve, () => resolve(null))); } catch { resolve(null); }
+  });
+  return Promise.race([run, new Promise<null>((r) => setTimeout(() => r(null), 5000))]);
+}
+
+const RECAPTCHA_NOTES: Record<string, string> = {
+  no_token: "No token was produced (the script was blocked or did not run), so Google was not asked.",
+  invalid: "Google rejected the token (expired, reused or from a different site).",
+  action_mismatch: "The token was minted for a different action than this page's, so it was ignored.",
+  capped: "This site's monthly allowance of Google assessments is used up, so Google was not asked.",
+  rate_limited: "Too many requests from your address, so Google was not asked.",
+  error: "Google could not be reached or answered unexpectedly.",
+};
+
+function renderRecaptcha(r: RecaptchaResult | undefined): void {
+  const block = $("recaptcha-block");
+  if (!r) { block.hidden = true; return; }
+  block.hidden = false;
+  const box = $("recaptcha");
+  if (r.status !== "ok" || typeof r.score !== "number") {
+    box.replaceChildren(el("p", RECAPTCHA_NOTES[r.status] ?? "No score.", "lead"));
+    return;
+  }
+  const leaning = r.score >= 0.7 ? "human" : r.score <= 0.3 ? "automated" : "neutral";
+  box.replaceChildren(
+    el("span", `Score ${r.score.toFixed(1)} of 1.0`, `verdict-badge ${leaning}`),
+    el("p", "Google's score runs from 0.0 (very likely automated) to 1.0 (very likely a person). Without a Google Cloud billing account it only returns 0.1, 0.3, 0.7 or 0.9.", "lead"),
+    el("p", r.reasons?.length ? `Reasons Google gave: ${r.reasons.join(", ")}` : "Google gave no reason codes.", "live"),
+  );
+}
 const live = $("live");
 const tick = setInterval(() => {
   const c = recorder.counts();
@@ -50,6 +109,7 @@ function render(r: Result, trace: unknown): void {
     table.append(row);
   }
   $("features").replaceChildren(table);
+  renderRecaptcha(r.recaptcha);
   $("raw-json").textContent = JSON.stringify(trace, null, 1);
   $("result").hidden = false;
   $("result").scrollIntoView({ behavior: "smooth" });
@@ -61,7 +121,8 @@ $<HTMLFormElement>("checkin").addEventListener("submit", async (ev) => {
   const button = $<HTMLButtonElement>("submit");
   button.disabled = true;
   try {
-    const res = await fetch("/api/v1/behavior", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ trace }) });
+    const token = await recaptchaToken();
+    const res = await fetch("/api/v1/behavior", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ trace, recaptchaToken: token }) });
     if (!res.ok) throw new Error(`server answered ${res.status}`);
     const result = (await res.json()) as Result;
     (window as unknown as Record<string, unknown>).__plzbotBehavior = result;
