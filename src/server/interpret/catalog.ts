@@ -365,6 +365,12 @@ export const SIGNAL_CATALOG: Record<string, CatalogEntry> = {
     whyItMatters: "scrollTo(), scrollIntoView and DevTools-protocol scrolls move the page without a gesture.",
     caveats: "Touch scrolling coasts after the finger lifts, so any trace with a touch is not counted.",
   },
+  "behavior.scroll.without_input_share": {
+    title: "Share of scrolling with no input",
+    description: "Fraction of all scroll events that had no wheel, touch, key or scrollbar-drag input around them.",
+    whyItMatters: "A few unexplained events are normal (momentum tails, browser-initiated scrolls); scripted scrolling is unexplained almost throughout, so the share separates the two.",
+    caveats: "Browser-initiated scrolls (focus scrolling into view, find-in-page) count as unexplained too.",
+  },
   "behavior.scroll.instant_jumps": {
     title: "Instant scroll jumps",
     description: "Scroll bursts that moved 200+ px within 20 ms.",

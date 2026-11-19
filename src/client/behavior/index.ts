@@ -65,6 +65,8 @@ $<HTMLFormElement>("checkin").addEventListener("submit", async (ev) => {
     if (!res.ok) throw new Error(`server answered ${res.status}`);
     const result = (await res.json()) as Result;
     (window as unknown as Record<string, unknown>).__plzbotBehavior = result;
+    recorder.stop(); // the verdict covers what was recorded up to Submit; don't keep counting while the result is read
+    clearInterval(tick);
     render(result, trace);
   } catch (err) {
     $("verdict").replaceChildren(el("p", `Could not analyze the trace: ${(err as Error).message}`, "lead"));

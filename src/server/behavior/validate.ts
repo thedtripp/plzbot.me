@@ -32,6 +32,7 @@ export function parseTrace(body: unknown): BehaviorTrace {
     if (y !== undefined) e.y = y;
     const b = num(raw.b, 0, 10);
     if (b !== undefined) e.b = b;
+    if (raw.rp === 1) e.rp = 1;
     if (typeof raw.kc === "string" && KEYCLASSES.has(raw.kc)) e.kc = raw.kc as BehaviorEvent["kc"];
     const h = num(raw.h, -1, MAX_T);
     if (h !== undefined) e.h = h;

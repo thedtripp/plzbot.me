@@ -35,6 +35,8 @@ export interface BehaviorEvent {
   y?: number;
   /** Mouse button. */
   b?: number;
+  /** 1 on a keydown that is the browser's auto-repeat of a held key. */
+  rp?: 1;
   /** Key class (keydown/keyup only). */
   kc?: KeyClass;
   /** Key hold time in ms, computed in the browser (keyup only); -1 when no matching keydown was seen. */

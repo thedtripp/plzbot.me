@@ -75,7 +75,11 @@ export function startRecorder(doc: Document = document): Recorder {
       "keydown",
       (e) => {
         const ke = e as KeyboardEvent;
-        if (ke.repeat) return;
+        if (ke.repeat) {
+          // A held key (scrolling with an arrow key, typing "aaaa"): still input, but not a new keystroke.
+          push(e, "keydown", { kc: keyClass(ke.key), rp: 1 });
+          return;
+        }
         down.set(ke.code, ke.timeStamp);
         push(e, "keydown", { kc: keyClass(ke.key) });
       },

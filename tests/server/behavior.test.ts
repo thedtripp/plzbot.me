@@ -87,8 +87,22 @@ describe("behavior assessment", () => {
     expect(computeFeatures(trace(wheel))["behavior.scroll.without_input"]).toBe(0); // scrolling kept going ~700 ms after the tick
     const drag = [ev(100, "mousedown", { f: "terms" }), ...Array.from({ length: 20 }, (_, i) => ev(150 + i * 40, "scroll", { d: i * 12, f: "terms" })), ev(1000, "mouseup")];
     expect(computeFeatures(trace(drag))["behavior.scroll.without_input"]).toBe(0);
+    const held = [ev(100, "keydown", { kc: "other", f: "terms" }), ...Array.from({ length: 10 }, (_, i) => ev(600 + i * 33, "keydown", { kc: "other", rp: 1, f: "terms" })), ...Array.from({ length: 20 }, (_, i) => ev(620 + i * 30, "scroll", { d: i * 10, f: "terms" }))];
+    expect(computeFeatures(trace(held))["behavior.scroll.without_input"]).toBe(0); // arrow key held: repeats are input
     const script = [ev(100, "click"), ...Array.from({ length: 5 }, (_, i) => ev(2000 + i * 20, "scroll", { d: i * 50, f: "terms" }))];
     expect(computeFeatures(trace(script))["behavior.scroll.without_input"]).toBe(5);
+  });
+
+  it("does not let a stray unexplained scroll event outweigh genuine scrolling", () => {
+    const wheel = Array.from({ length: 40 }, (_, i) => ev(110 + i * 20, "scroll", { d: i * 9, f: "terms" }));
+    const f = computeFeatures(trace([ev(100, "wheel"), ...wheel, ev(5000, "scroll", { d: 400, f: "terms" }), ev(5001, "click"), ev(5002, "click"), ev(5003, "click")]));
+    expect(f["behavior.scroll.without_input"]).toBe(1);
+    expect(assess(f).evidence.map((e) => e.id)).not.toContain("behavior.scroll_without_input");
+  });
+
+  it("does not count held-key auto-repeat as extra keystrokes", () => {
+    const evs = [ev(0, "keydown", { kc: "char", f: "p" }), ...Array.from({ length: 30 }, (_, i) => ev(500 + i * 30, "keydown", { kc: "char", rp: 1, f: "p" }))];
+    expect(computeFeatures(trace(evs))["behavior.keys.chars"]).toBe(1);
   });
 
   it("needs enough interaction before judging", () => {

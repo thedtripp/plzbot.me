@@ -90,7 +90,7 @@ function mouseFeatures(events: BehaviorEvent[], f: BehaviorFeatures): void {
 }
 
 function keyFeatures(events: BehaviorEvent[], f: BehaviorFeatures, trace: BehaviorTrace): void {
-  const keydowns = events.filter((e) => e.k === "keydown");
+  const keydowns = events.filter((e) => e.k === "keydown" && !e.rp); // auto-repeats are input, not new keystrokes
   const chars = keydowns.filter((e) => e.kc === "char");
   const holds = events.filter((e) => e.k === "keyup" && e.h !== undefined && e.h >= 0).map((e) => e.h!);
   const gaps: number[] = [];
@@ -164,7 +164,9 @@ function scrollFeatures(events: BehaviorEvent[], f: BehaviorFeatures): void {
   const dist = (b: BehaviorEvent[]) => Math.abs(b.at(-1)!.d! - b[0]!.d!);
   const dur = (b: BehaviorEvent[]) => b.at(-1)!.t - b[0]!.t;
   f["behavior.scroll.events"] = scrolls.length;
-  f["behavior.scroll.without_input"] = bursts.filter((b) => !driven(b)).reduce((s, b) => s + b.length, 0);
+  const undriven = bursts.filter((b) => !driven(b)).reduce((s, b) => s + b.length, 0);
+  f["behavior.scroll.without_input"] = undriven;
+  f["behavior.scroll.without_input_share"] = scrolls.length ? round(undriven / scrolls.length, 3) : null;
   f["behavior.scroll.instant_jumps"] = bursts.filter((b) => dist(b) >= INSTANT_JUMP_PX && dur(b) <= INSTANT_JUMP_MS).length;
   f["behavior.scroll.gradual_bursts"] = bursts.filter((b) => b.length >= 5 && dur(b) >= 100).length;
   f["behavior.scroll.distance_stdev"] = bursts.length >= 2 ? round(stdev(bursts.map(dist))) : null;

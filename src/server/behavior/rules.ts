@@ -109,11 +109,13 @@ const RULES: Rule[] = [
   },
   (f) => {
     const s = n(f, "behavior.scroll.without_input");
-    return s
+    const share = n(f, "behavior.scroll.without_input_share");
+    // A stray event after a coasting scroll is noise; scripted scrolling is unexplained almost throughout.
+    return s && share !== null && share >= 0.5
       ? {
           id: "behavior.scroll_without_input", title: "Page scrolled with no wheel, touch or key input", direction: "automated", weight: 2, confidence: "medium",
-          statement: `${s} scroll event(s) had no wheel, touch, key or scrollbar-drag input just before — typical of scrollTo()/scrollIntoView or a DevTools-protocol scroll.`,
-          features: ["behavior.scroll.without_input"],
+          statement: `${s} scroll event(s), ${Math.round(share * 100)}% of all scrolling, had no wheel, touch, key or scrollbar-drag input around them — typical of scrollTo()/scrollIntoView or a DevTools-protocol scroll.`,
+          features: ["behavior.scroll.without_input", "behavior.scroll.without_input_share"],
         }
       : null;
   },
