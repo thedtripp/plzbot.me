@@ -31,6 +31,9 @@ fingerprint. HTTP mode is the fallback for zero-ops hosting.
 | `PLZBOT_IP2ASN_PATH` | unset | Optional path to an iptoasn.com TSV for offline ASN/org lookups (free, no account). |
 | `PLZBOT_DATABASE_URL` (or `DATABASE_URL`) | unset | Postgres connection string. Set = every fingerprint is saved (kept forever); unset = nothing is stored. A secret: keep it in `.env` only. |
 | `PLZBOT_ADMIN_PASSWORD` | unset | 12+ characters. Enables the private analysis page at `/admin` (HTTP Basic auth, any username) over the stored fingerprints. Unset = `/admin` returns 404. Ten wrong attempts lock an IP out for 5 minutes. |
+| `PLZBOT_RECAPTCHA_PROJECT_ID`, `_SITE_KEY`, `_API_KEY` | unset | All three turn on a Google reCAPTCHA Enterprise score on `/behavior` (key setup: Google's docs). None = off and nothing is sent to Google; some = startup error. The API key is a secret: `.env` only. |
+| `PLZBOT_RECAPTCHA_MONTHLY_CAP` | `8000` | Stop calling Google after this many assessments per UTC month (in memory: a restart resets it). `0` = no cap. |
+| `PLZBOT_RECAPTCHA_EXEMPT_IPS` | unset | Comma-separated addresses exempt from the per-visitor limits (5/min, 40/day). IPv6 matches by /64. |
 | `PLZBOT_STORE_LIMIT_PER_MINUTE` / `_PER_HOUR` / `_PER_DAY` | `10` / `30` / `100` | Max fingerprints **saved** per visitor (IPv4 address or IPv6 /64) in each window; visitors still get their response. Over a limit the record is counted, not stored (shown on the admin page). `0` disables a tier. |
 | `PLZBOT_STORE_MAX_TABLE_MB` | `800` | Stop saving visits while the stored data (`visits` + `fingerprint_docs`) is over this size (protects a 1 GB free database). `0` = no cap. |
 

@@ -54,6 +54,7 @@ handling.
 
 Analyzes an interaction trace recorded by the behavior page (`public/behavior.html`, recorder in
 `src/client/behavior/`) and returns a hedged human/automated verdict. Nothing is stored yet.
+With `recaptchaToken` in the body and reCAPTCHA enabled, the response also carries `recaptcha: { status, score?, reasons?, invalidReason?, google }`: a separate opinion that never changes the verdict, with Google's full answer under `google`.
 
 **Request:** `{"trace": {"events": [...], "dropped": 0, "danglingKeydowns": 0, "viewport": {"w": 1280, "h": 800}}}`.
 Each event is `{t, k, tr, f?, x?, y?, b?, kc?, h?, it?, d?}` (see `src/shared/behavior.ts`): `t` ms since

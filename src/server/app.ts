@@ -11,6 +11,8 @@ import { registerAdminRoutes } from "./admin.js";
 import { parseTrace } from "./behavior/validate.js";
 import { computeFeatures } from "./behavior/features.js";
 import { assess } from "./behavior/rules.js";
+import { RecaptchaAssessor } from "./recaptcha/assess.js";
+import { getRequestContext } from "./runtime/requestContext.js";
 
 function json(res: Parameters<Handler>[1], status: number, body: unknown): void {
   res.statusCode = status;
@@ -18,7 +20,12 @@ function json(res: Parameters<Handler>[1], status: number, body: unknown): void 
   res.end(JSON.stringify(body));
 }
 
-export function createApp(config: RuntimeConfig = loadConfig(), store: FingerprintStore | null = null): Handler {
+export function createApp(
+  config: RuntimeConfig = loadConfig(),
+  store: FingerprintStore | null = null,
+  /** Injectable so tests can fake Google; by default built from the config (null when reCAPTCHA is off). */
+  recaptcha: RecaptchaAssessor | null = config.recaptcha ? new RecaptchaAssessor(config.recaptcha) : null,
+): Handler {
   const router = new Router();
   const staticHandler = serveStatic(PUBLIC_DIR);
 
@@ -54,16 +61,34 @@ export function createApp(config: RuntimeConfig = loadConfig(), store: Fingerpri
     staticHandler(req, res);
   });
 
+  // Public, non-secret settings for the optional Google reCAPTCHA score. The page loads Google's script only when enabled.
+  router.get("/api/v1/recaptcha", (_req, res) => {
+    json(res, 200, recaptcha ? { enabled: true, ...recaptcha.clientConfig() } : { enabled: false });
+  });
+
   router.post("/api/v1/behavior", async (req, res) => {
+    let body: unknown;
     let trace;
     try {
-      trace = parseTrace(await readJsonBody(req));
+      body = await readJsonBody(req);
+      trace = parseTrace(body);
     } catch (err) {
       json(res, 400, { error: `Invalid behavior trace: ${(err as Error).message}` });
       return;
     }
     const features = computeFeatures(trace);
-    json(res, 200, { ...assess(features), features });
+    const verdict = { ...assess(features), features };
+    if (!recaptcha) {
+      json(res, 200, verdict);
+      return;
+    }
+    // A separate signal beside the verdict: it never changes the verdict above.
+    const result = await recaptcha.assess({
+      token: (body as { recaptchaToken?: unknown }).recaptchaToken,
+      clientIp: getRequestContext(req, config).clientIp,
+      userAgent: req.headers["user-agent"],
+    });
+    json(res, 200, { ...verdict, recaptcha: result });
   });
 
   registerAdminRoutes(router, config, store);
@@ -79,6 +104,7 @@ export function createApp(config: RuntimeConfig = loadConfig(), store: Fingerpri
         { method: "GET", path: "/api/v1/fingerprint", description: "Server-observed fingerprint for the current request." },
         { method: "POST", path: "/api/v1/fingerprint/client", description: "Submit browser-collected observations; returns the combined fingerprint." },
         { method: "POST", path: "/api/v1/behavior", description: "Submit an interaction trace ({trace:{events,...}}); returns a hedged human/automated verdict with cited evidence." },
+        { method: "GET", path: "/api/v1/recaptcha", description: "Whether the optional Google reCAPTCHA score is enabled on this deployment, and the public site key the page needs." },
         { method: "GET", path: "/api/v1/signals", description: "Educational catalog of known signal ids." },
       ],
       documentation: "See docs/API.md in the repository.",

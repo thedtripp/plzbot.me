@@ -31,6 +31,12 @@ services:
       PLZBOT_STORE_LIMIT_PER_HOUR: ${PLZBOT_STORE_LIMIT_PER_HOUR:-30}
       PLZBOT_STORE_LIMIT_PER_DAY: ${PLZBOT_STORE_LIMIT_PER_DAY:-100}
       PLZBOT_STORE_MAX_TABLE_MB: ${PLZBOT_STORE_MAX_TABLE_MB:-800}
+      # Optional Google reCAPTCHA Enterprise score on /behavior. All three set = on; none = off (nothing is sent to Google).
+      PLZBOT_RECAPTCHA_PROJECT_ID: ${PLZBOT_RECAPTCHA_PROJECT_ID:-}
+      PLZBOT_RECAPTCHA_SITE_KEY: ${PLZBOT_RECAPTCHA_SITE_KEY:-}
+      PLZBOT_RECAPTCHA_API_KEY: ${PLZBOT_RECAPTCHA_API_KEY:-}
+      PLZBOT_RECAPTCHA_MONTHLY_CAP: ${PLZBOT_RECAPTCHA_MONTHLY_CAP:-8000}
+      PLZBOT_RECAPTCHA_EXEMPT_IPS: ${PLZBOT_RECAPTCHA_EXEMPT_IPS:-}
     volumes:
       - letsencrypt:/etc/letsencrypt:ro
       - acme-webroot:/acme-webroot:ro
