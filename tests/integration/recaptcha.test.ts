@@ -40,9 +40,9 @@ beforeAll(async () => {
   off = await startSite(createApp());
   const fakeGoogle = (async (_url: string, init: RequestInit) => {
     sent.push(JSON.parse(String(init.body)));
-    return new Response(JSON.stringify({ tokenProperties: { valid: true, action: "behavior_submit" }, riskAnalysis: { score: 0.3, reasons: ["AUTOMATION"] } }));
+    return new Response(JSON.stringify({ tokenProperties: { valid: true, action: "behavior_submit" }, riskAnalysis: { score: 0.3, reasons: ["AUTOMATION"] }, someNewGoogleField: "kept" }));
   }) as unknown as typeof fetch;
-  const assessor = new RecaptchaAssessor({ projectId: "p", siteKey: "test-site-key", apiKey: "test-api-key", monthlyCap: 0 }, fakeGoogle);
+  const assessor = new RecaptchaAssessor({ projectId: "p", siteKey: "test-site-key", apiKey: "test-api-key", monthlyCap: 0, exemptIps: [] }, fakeGoogle);
   on = await startSite(createApp(undefined, null, assessor));
   browser = await chromium.launch();
 }, 60000);
@@ -92,11 +92,12 @@ describe("reCAPTCHA on the behavior page", () => {
 
     expect(sent).toHaveLength(1);
     expect(sent[0].event).toMatchObject({ token: "stub-token:test-site-key:behavior_submit", siteKey: "test-site-key", expectedAction: "behavior_submit" });
-    expect(r.recaptcha).toEqual({ status: "ok", score: 0.3, reasons: ["AUTOMATION"] });
+    expect(r.recaptcha).toMatchObject({ status: "ok", score: 0.3, reasons: ["AUTOMATION"], google: { someNewGoogleField: "kept" } });
     expect(r.verdict).toBe("likely_automated"); // Playwright's fill/select/check: decided by the behavior rules alone
     expect(JSON.stringify(r)).not.toContain("test-api-key");
     expect(await page.locator("#recaptcha-block").isVisible()).toBe(true);
     expect(await page.locator("#recaptcha").innerText()).toContain("0.3");
+    expect(await page.locator("#recaptcha-raw").textContent()).toContain("someNewGoogleField"); // everything Google returned is shown
     expect(await page.locator("#recaptcha-terms").isVisible()).toBe(true);
     await context.close();
   }, 30000);

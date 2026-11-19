@@ -4,9 +4,8 @@ import { StorageLimiter, limiterKey } from "../storage/rateLimit.js";
  * Optional Google reCAPTCHA Enterprise score, kept deliberately separate from the behavior verdict:
  * it is a second opinion from a third party, shown beside our own evidence and never fed into it.
  *
- * Everything here is defensive about cost and secrets. Each assessment counts against Google's free
- * monthly allowance, so calls are capped per month and per visitor, and the API key is only ever put in
- * the request URL (never logged, never returned to the browser).
+ * Calls are capped per month and per visitor because each one counts against Google's free allowance. Whatever
+ * Google answers is passed through untouched (minus our own API key, which only ever lives in the request URL).
  */
 export interface RecaptchaConfig {
   projectId: string;
@@ -15,6 +14,8 @@ export interface RecaptchaConfig {
   apiKey: string;
   /** Max Google assessments per calendar month (UTC) before we stop calling. 0 = no cap. */
   monthlyCap: number;
+  /** Addresses exempt from the per-visitor limits (the owner's). IPv6 addresses match by their /64. The monthly cap still applies. */
+  exemptIps: string[];
 }
 
 export const RECAPTCHA_ACTION = "behavior_submit";
@@ -26,7 +27,7 @@ export type RecaptchaStatus =
   | "action_mismatch" // valid token, but minted for a different action
   | "capped" // our monthly budget is spent; Google was not called
   | "rate_limited" // this visitor asked too often; Google was not called
-  | "error"; // Google unreachable or answered unexpectedly
+  | "error"; // Google unreachable or answered with an error
 
 export interface RecaptchaResult {
   status: RecaptchaStatus;
@@ -34,7 +35,12 @@ export interface RecaptchaResult {
   score?: number;
   /** Google reason codes such as AUTOMATION. Only returned for projects with billing enabled. */
   reasons?: string[];
+  /** Why Google called the token invalid (e.g. EXPIRED, DUPLICATE). */
   invalidReason?: string;
+  /** HTTP status when Google answered with an error. */
+  httpStatus?: number;
+  /** Google's complete answer, whatever fields it contains, so nothing it tells us is dropped. */
+  google?: unknown;
 }
 
 export interface AssessInput {
@@ -49,6 +55,7 @@ const TIMEOUT_MS = 4000;
 export class RecaptchaAssessor {
   private month = "";
   private used = 0;
+  private readonly exempt: Set<string>;
   private readonly visitors = new StorageLimiter([
     { name: "minute", windowMs: 60_000, max: 5 },
     { name: "day", windowMs: 86_400_000, max: 40 },
@@ -58,17 +65,13 @@ export class RecaptchaAssessor {
     private readonly config: RecaptchaConfig,
     private readonly fetchFn: typeof fetch = fetch,
     private readonly now: () => number = Date.now,
-  ) {}
+  ) {
+    this.exempt = new Set(config.exemptIps.map(limiterKey));
+  }
 
   /** Public, non-secret settings the page needs to load Google's script. */
   clientConfig(): { siteKey: string; action: string } {
     return { siteKey: this.config.siteKey, action: RECAPTCHA_ACTION };
-  }
-
-  /** How many assessments this process has sent to Google this month (resets on restart). */
-  usage(): { month: string; used: number; cap: number } {
-    this.rollMonth();
-    return { month: this.month, used: this.used, cap: this.config.monthlyCap };
   }
 
   private rollMonth(): void {
@@ -79,11 +82,22 @@ export class RecaptchaAssessor {
     }
   }
 
+  /** Google's answer as JSON-safe data, with our API key removed in case an error message ever echoes it. */
+  private scrub(raw: string): unknown {
+    const clean = raw.split(this.config.apiKey).join("[redacted]");
+    try {
+      return JSON.parse(clean);
+    } catch {
+      return clean.slice(0, 2000);
+    }
+  }
+
   async assess(input: AssessInput): Promise<RecaptchaResult> {
     const token = typeof input.token === "string" ? input.token : "";
     if (!token || token.length > MAX_TOKEN_LENGTH) return { status: "no_token" };
 
-    if (this.visitors.check(limiterKey(input.clientIp), this.now())) return { status: "rate_limited" };
+    const key = limiterKey(input.clientIp);
+    if (!this.exempt.has(key) && this.visitors.check(key, this.now())) return { status: "rate_limited" };
     this.rollMonth();
     if (this.config.monthlyCap > 0 && this.used >= this.config.monthlyCap) return { status: "capped" };
     this.used++; // count before the call: a timeout may still have been billed
@@ -95,34 +109,36 @@ export class RecaptchaAssessor {
     if (input.userAgent) event.userAgent = input.userAgent.slice(0, 512);
     if (input.clientIp) event.userIpAddress = input.clientIp;
 
-    let body: unknown;
+    let res: Response;
+    let text: string;
     try {
-      const res = await this.fetchFn(url, {
+      res = await this.fetchFn(url, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ event }),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
-      if (!res.ok) return { status: "error" };
-      body = await res.json();
+      text = await res.text();
     } catch {
       return { status: "error" }; // never include the error: its message can contain the request URL, and so the key
     }
 
-    const r = body as {
+    const google = this.scrub(text);
+    if (!res.ok) return { status: "error", httpStatus: res.status, google };
+
+    // Read only what we need to classify; everything else rides along untouched in `google`.
+    const r = google as {
       tokenProperties?: { valid?: unknown; invalidReason?: unknown; action?: unknown };
       riskAnalysis?: { score?: unknown; reasons?: unknown };
-    };
-    const tp = r.tokenProperties;
+    } | null;
+    const tp = r?.tokenProperties;
     if (!tp || tp.valid !== true) {
-      return { status: "invalid", invalidReason: typeof tp?.invalidReason === "string" ? tp.invalidReason.slice(0, 60) : undefined };
+      return { status: "invalid", invalidReason: typeof tp?.invalidReason === "string" ? tp.invalidReason : undefined, google };
     }
-    if (tp.action !== RECAPTCHA_ACTION) return { status: "action_mismatch" };
-    const score = r.riskAnalysis?.score;
-    if (typeof score !== "number" || !Number.isFinite(score)) return { status: "error" };
-    const reasons = Array.isArray(r.riskAnalysis?.reasons)
-      ? (r.riskAnalysis!.reasons as unknown[]).filter((x): x is string => typeof x === "string").map((x) => x.slice(0, 60)).slice(0, 10)
-      : [];
-    return { status: "ok", score, reasons };
+    if (tp.action !== RECAPTCHA_ACTION) return { status: "action_mismatch", google };
+    const score = r?.riskAnalysis?.score;
+    if (typeof score !== "number" || !Number.isFinite(score)) return { status: "error", google };
+    const reasons = Array.isArray(r?.riskAnalysis?.reasons) ? (r!.riskAnalysis!.reasons as unknown[]).filter((x): x is string => typeof x === "string") : [];
+    return { status: "ok", score, reasons, google };
   }
 }

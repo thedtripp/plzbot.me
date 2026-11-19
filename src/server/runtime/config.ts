@@ -76,7 +76,8 @@ export function parseRecaptcha(env: NodeJS.ProcessEnv): RecaptchaConfig | null {
   if (set !== 3) {
     throw new Error("reCAPTCHA needs all of PLZBOT_RECAPTCHA_PROJECT_ID, PLZBOT_RECAPTCHA_SITE_KEY and PLZBOT_RECAPTCHA_API_KEY (or none of them)");
   }
-  return { projectId, siteKey, apiKey, monthlyCap: envInt(env, "PLZBOT_RECAPTCHA_MONTHLY_CAP", 8000) };
+  const exemptIps = (env.PLZBOT_RECAPTCHA_EXEMPT_IPS ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+  return { projectId, siteKey, apiKey, monthlyCap: envInt(env, "PLZBOT_RECAPTCHA_MONTHLY_CAP", 8000), exemptIps };
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): RuntimeConfig {

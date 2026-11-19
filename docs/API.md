@@ -50,19 +50,11 @@ half and the interpretation layer's output, which is recomputed against the comb
 Malformed input never crashes the process — see `src/server/http/router.ts`'s per-route error
 handling.
 
-### `GET /api/v1/recaptcha`
-
-Returns `{ "enabled": false }`, or `{ "enabled": true, "siteKey": "...", "action": "behavior_submit" }` when the
-deployment has Google reCAPTCHA Enterprise configured. The site key is public. The behavior page loads Google's
-script only when this says enabled.
-
 ### `POST /api/v1/behavior`
 
 Analyzes an interaction trace recorded by the behavior page (`public/behavior.html`, recorder in
 `src/client/behavior/`) and returns a hedged human/automated verdict. Nothing is stored yet.
-The body may also carry `recaptchaToken` (a token from Google's script). When reCAPTCHA is enabled the response then
-includes `recaptcha: { status, score?, reasons?, invalidReason? }`, a separate third-party opinion that never changes the
-verdict. `status` is `ok`, `no_token`, `invalid`, `action_mismatch`, `capped`, `rate_limited` or `error`.
+With `recaptchaToken` in the body and reCAPTCHA enabled, the response also carries `recaptcha: { status, score?, reasons?, invalidReason?, google }`: a separate opinion that never changes the verdict, with Google's full answer under `google`.
 
 **Request:** `{"trace": {"events": [...], "dropped": 0, "danglingKeydowns": 0, "viewport": {"w": 1280, "h": 800}}}`.
 Each event is `{t, k, tr, f?, x?, y?, b?, kc?, h?, it?, d?}` (see `src/shared/behavior.ts`): `t` ms since

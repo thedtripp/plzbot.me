@@ -1,7 +1,7 @@
 import { startRecorder } from "./recorder.js";
 
 interface Evidence { id: string; title: string; statement: string; direction: "automated" | "human"; weight: number; confidence: string; features: string[] }
-interface RecaptchaResult { status: string; score?: number; reasons?: string[]; invalidReason?: string }
+interface RecaptchaResult { status: string; score?: number; reasons?: string[]; invalidReason?: string; httpStatus?: number; google?: unknown }
 interface Result { recaptcha?: RecaptchaResult; verdict: string; automatedWeight: number; humanWeight: number; evidence: Evidence[]; features: Record<string, number | boolean | null> }
 
 const VERDICTS: Record<string, { label: string; tone: string; note: string }> = {
@@ -67,8 +67,10 @@ function renderRecaptcha(r: RecaptchaResult | undefined): void {
   if (!r) { block.hidden = true; return; }
   block.hidden = false;
   const box = $("recaptcha");
+  $("recaptcha-raw").textContent = r.google === undefined ? "Google was not asked, or did not answer." : JSON.stringify(r.google, null, 1);
   if (r.status !== "ok" || typeof r.score !== "number") {
-    box.replaceChildren(el("p", RECAPTCHA_NOTES[r.status] ?? "No score.", "lead"));
+    const detail = [r.invalidReason && `reason: ${r.invalidReason}`, r.httpStatus && `HTTP ${r.httpStatus}`].filter(Boolean).join(", ");
+    box.replaceChildren(el("p", (RECAPTCHA_NOTES[r.status] ?? "No score.") + (detail ? ` (${detail})` : ""), "lead"));
     return;
   }
   const leaning = r.score >= 0.7 ? "human" : r.score <= 0.3 ? "automated" : "neutral";

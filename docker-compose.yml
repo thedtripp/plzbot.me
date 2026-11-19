@@ -36,6 +36,7 @@ services:
       PLZBOT_RECAPTCHA_SITE_KEY: ${PLZBOT_RECAPTCHA_SITE_KEY:-}
       PLZBOT_RECAPTCHA_API_KEY: ${PLZBOT_RECAPTCHA_API_KEY:-}
       PLZBOT_RECAPTCHA_MONTHLY_CAP: ${PLZBOT_RECAPTCHA_MONTHLY_CAP:-8000}
+      PLZBOT_RECAPTCHA_EXEMPT_IPS: ${PLZBOT_RECAPTCHA_EXEMPT_IPS:-}
     volumes:
       - letsencrypt:/etc/letsencrypt:ro
       - acme-webroot:/acme-webroot:ro
