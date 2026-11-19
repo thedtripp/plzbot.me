@@ -17,3 +17,5 @@ course/tools/__pycache__/
 # Per-host compose settings (see deploy/README.md)
 docker-compose.override.yml
 .neon
+public/behavior.js
+public/behavior.js.map

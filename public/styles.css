@@ -79,7 +79,8 @@ header.hero p {
 
 nav.top-nav {
   display: flex;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
   font-size: 0.85rem;
 }
 nav.top-nav a {
@@ -283,7 +284,7 @@ footer.page-footer a { color: var(--text-dim); }
   .page { padding: 1.25rem 1rem 4rem; }
   header.hero { gap: 0.75rem; }
   header.hero p { max-width: none; }
-  nav.top-nav { gap: 1.25rem; font-size: 0.92rem; }
+  nav.top-nav { gap: 0.25rem 1.25rem; font-size: 0.92rem; }
   nav.top-nav a { padding: 0.25rem 0; }
   section.block { padding: 1rem; border-radius: 10px; }
   section.block > h2 { flex-wrap: wrap; row-gap: 0.1rem; }
@@ -315,3 +316,27 @@ footer.page-footer a { color: var(--text-dim); }
   .docs-page pre, .docs-page table { max-width: 100%; overflow-x: auto; display: block; }
   .docs-page code { overflow-wrap: anywhere; }
 }
+
+/* behavior page */
+.task-form { display: grid; gap: 0.6rem; max-width: 36rem; }
+.task-form label { font-weight: 600; }
+.task-form label.check { font-weight: 400; display: flex; gap: 0.5rem; align-items: center; }
+.task-form input[type="text"], .task-form select {
+  font: inherit; padding: 0.5rem 0.6rem; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg-raised); color: var(--text);
+}
+.terms {
+  height: 6.5rem; overflow-y: auto; padding: 0.5rem 0.75rem; border: 1px solid var(--border);
+  border-radius: 6px; background: var(--bg-raised); color: var(--text-dim);
+}
+.terms p { margin: 0 0 1.4rem; }
+.live { font-family: var(--mono); font-size: 0.85rem; color: var(--text-faint); }
+.verdict-badge { display: inline-block; padding: 0.35rem 0.9rem; border-radius: 999px; font-weight: 700; }
+.verdict-badge.automated { background: var(--bad-bg); color: var(--bad); }
+.verdict-badge.human { background: var(--good-bg); color: var(--good); }
+.verdict-badge.neutral { background: var(--accent-bg); color: var(--accent); }
+.evidence-item { border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 0.9rem; margin-bottom: 0.6rem; }
+.evidence-item h3 { margin: 0 0 0.2rem; font-size: 1rem; }
+.evidence-item p { margin: 0.2rem 0; color: var(--text-dim); }
+.feature-table { border-collapse: collapse; font-family: var(--mono); font-size: 0.82rem; }
+.feature-table td { padding: 0.15rem 1rem 0.15rem 0; border-bottom: 1px solid var(--border); }

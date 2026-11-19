@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>plzbot.me — behavior check</title>
+  <meta name="description" content="Fill in a short form and see how a site can tell a person from an automated agent by how you move, type and scroll." />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <div>
+        <h1>plzbot.me</h1>
+        <p>The fingerprint page shows what a client <em>is</em>. This page watches what it <em>does</em>: how it moves the pointer, types, scrolls and paces its actions — then explains, with evidence, whether that looks like a person or an automated agent.</p>
+      </div>
+      <nav class="top-nav">
+        <a href="/">Fingerprint</a>
+        <a href="/behavior" class="active">Behavior</a>
+        <a href="/docs.html">How it works</a>
+        <a href="/api/v1">API</a>
+        <a href="https://www.ddtripp.com/plzbot.me/">About</a>
+      </nav>
+    </header>
+
+    <section class="block">
+      <h2>Task: check in <span class="count">— humans: just fill it in. Agents: complete the form and press Submit.</span></h2>
+      <form id="checkin" class="task-form" autocomplete="off" novalidate>
+        <label for="phrase">Type this phrase exactly: <code>the quick brown fox jumps over the lazy dog</code></label>
+        <input id="phrase" name="phrase" type="text" />
+
+        <label for="topic">What brought you here?</label>
+        <select id="topic" name="topic">
+          <option value="">Choose one…</option>
+          <option value="curious">Just curious</option>
+          <option value="building">Building a bot</option>
+          <option value="defending">Defending against bots</option>
+          <option value="agent">I am an AI agent</option>
+        </select>
+
+        <label for="terms">Read the notice (scroll to the end):</label>
+        <div id="terms" class="terms" tabindex="0">
+          <p>This page records timing and position of mouse, keyboard, scroll and touch events while you use it. It never records which keys you press or what you type.</p>
+          <p>The recording is analyzed on the server to produce the verdict shown after you submit.</p>
+          <p>Interaction timings and pointer paths from submissions may be stored indefinitely to study how people and automated agents differ.</p>
+          <p>Typed text, selected values and key identities are not stored.</p>
+          <p>Signals like these are evidence, not proof. A person using an accessibility tool or an unusual device can look automated, and a careful bot can look human.</p>
+          <p>Automated agents are welcome here. This page exists to show how they differ.</p>
+          <p>There is nothing else to read. Scroll to the end, then continue.</p>
+        </div>
+
+        <label class="check"><input id="agree" name="agree" type="checkbox" /> I have read the notice</label>
+
+        <button id="submit" type="submit" class="raw-toggle">Submit</button>
+      </form>
+      <p class="lead live" id="live">Recording: 0 events</p>
+    </section>
+
+    <div id="result" hidden>
+      <section class="block">
+        <h2>Verdict</h2>
+        <div id="verdict"></div>
+        <p class="lead" id="weights"></p>
+      </section>
+      <section class="block">
+        <h2>Evidence <span class="count">— what the verdict is based on</span></h2>
+        <div id="evidence"></div>
+      </section>
+      <section class="block">
+        <h2>Measured features</h2>
+        <div id="features"></div>
+      </section>
+      <section class="block">
+        <h2>Raw trace</h2>
+        <button class="raw-toggle" id="raw-toggle" type="button">Show raw JSON</button>
+        <pre class="raw-json" id="raw-json" style="display:none"></pre>
+        <p><button class="raw-toggle" id="again" type="button">Try again</button></p>
+      </section>
+    </div>
+
+    <footer class="page-footer">
+      <p>This page sends the interaction trace (timings, pointer positions, key classes — never key values or text) to <code>POST /api/v1/behavior</code>. See <a href="/docs.html#behavioral">how behavior is analyzed</a> and <a href="/docs.html#privacy">privacy</a>.</p>
+    </footer>
+  </div>
+  <script src="/behavior.js"></script>
+</body>
+</html>
