@@ -82,6 +82,15 @@ describe("behavior assessment", () => {
     expect(f["behavior.scroll.without_input"]).toBe(0);
   });
 
+  it("treats a long wheel-scroll animation, or a scrollbar drag, as input-driven", () => {
+    const wheel = [ev(100, "wheel", { f: "terms" }), ...Array.from({ length: 30 }, (_, i) => ev(110 + i * 20, "scroll", { d: i * 9, f: "terms" }))];
+    expect(computeFeatures(trace(wheel))["behavior.scroll.without_input"]).toBe(0); // scrolling kept going ~700 ms after the tick
+    const drag = [ev(100, "mousedown", { f: "terms" }), ...Array.from({ length: 20 }, (_, i) => ev(150 + i * 40, "scroll", { d: i * 12, f: "terms" })), ev(1000, "mouseup")];
+    expect(computeFeatures(trace(drag))["behavior.scroll.without_input"]).toBe(0);
+    const script = [ev(100, "click"), ...Array.from({ length: 5 }, (_, i) => ev(2000 + i * 20, "scroll", { d: i * 50, f: "terms" }))];
+    expect(computeFeatures(trace(script))["behavior.scroll.without_input"]).toBe(5);
+  });
+
   it("needs enough interaction before judging", () => {
     expect(run([]).verdict).toBe("not_enough_interaction");
     expect(run([ev(5, "click", { f: "submit" })]).verdict).toBe("not_enough_interaction");

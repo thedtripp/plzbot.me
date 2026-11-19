@@ -25,10 +25,13 @@ function keyClass(key: string): KeyClass {
   return "other";
 }
 
-function fieldOf(target: EventTarget | null): string | undefined {
+/** `redirectLabel`: a press on a <label>'s text activates its control, so attribute pointer events to the control. */
+function fieldOf(target: EventTarget | null, redirectLabel = false): string | undefined {
   if (!(target instanceof Element)) return target === document ? "page" : undefined;
-  const id = target.id;
-  const name = id && /^[A-Za-z0-9_-]+$/.test(id) ? id : target.tagName.toLowerCase();
+  const control = redirectLabel ? (target.closest("label") as HTMLLabelElement | null)?.control : null;
+  const el = control ?? target;
+  const id = el.id;
+  const name = id && /^[A-Za-z0-9_-]+$/.test(id) ? id : el.tagName.toLowerCase();
   return name.slice(0, MAX_FIELD_ID_LENGTH);
 }
 
@@ -44,13 +47,14 @@ export function startRecorder(doc: Document = document): Recorder {
   let dropped = 0;
   let lastMove = -Infinity;
 
+  const POINTER = new Set<BehaviorEventType>(["mousedown", "mouseup", "click", "touchstart"]);
   const push = (e: Event, k: BehaviorEventType, extra: Partial<BehaviorEvent> = {}) => {
     counts[k] = (counts[k] ?? 0) + 1;
     if (events.length >= MAX_TRACE_EVENTS) {
       dropped++;
       return;
     }
-    const f = fieldOf(e.target);
+    const f = fieldOf(e.target, POINTER.has(k));
     events.push({ t: Math.round(e.timeStamp * 10) / 10, k, tr: e.isTrusted ? 1 : 0, ...(f ? { f } : {}), ...extra });
   };
 

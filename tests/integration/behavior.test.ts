@@ -126,6 +126,21 @@ describe("behavior page in a real automated browser", () => {
     await close();
   }, 20000);
 
+  it("does not call a click on the checkbox's label text 'filled without clicking'", async () => {
+    const { page, close } = await open();
+    await page.mouse.move(100, 100);
+    await page.mouse.move(300, 300, { steps: 20 });
+    const box = (await page.locator("label.check").boundingBox())!;
+    await page.mouse.move(box.x + box.width - 15, box.y + box.height / 2, { steps: 20 });
+    await page.mouse.down();
+    await page.waitForTimeout(70);
+    await page.mouse.up();
+    const r = await submit(page);
+    expect(await page.locator("#agree").isChecked()).toBe(true);
+    expect(ids(r)).not.toContain("behavior.programmatic_input");
+    await close();
+  }, 20000);
+
   it("rejects a malformed trace with 400", async () => {
     const { page, close } = await open();
     const status = await page.evaluate(() => fetch("/api/v1/behavior", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ trace: { events: [{ t: "x" }] } }) }).then((r) => r.status));

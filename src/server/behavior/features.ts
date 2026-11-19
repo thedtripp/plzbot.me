@@ -131,24 +131,40 @@ function keyFeatures(events: BehaviorEvent[], f: BehaviorFeatures, trace: Behavi
 function scrollFeatures(events: BehaviorEvent[], f: BehaviorFeatures): void {
   const scrolls = events.filter((e) => e.k === "scroll" && e.d !== undefined);
   const touchy = events.some((e) => e.k === "touchstart"); // touch scrolling coasts on after the finger lifts
-  let pressed = false;
-  let lastInput = -Infinity;
-  let without = 0;
-  const bursts: BehaviorEvent[][] = [];
+
+  // Moments the visitor was providing scroll-capable input: wheel ticks, touches, keys, button presses, and
+  // pointer movement while a button is held (dragging a scrollbar).
+  const inputTimes: number[] = [];
+  const held: [number, number][] = [];
+  let pressedAt: number | null = null;
   for (const e of events) {
-    if (e.k === "mousedown") pressed = true;
-    if (e.k === "mouseup") pressed = false;
-    if (["wheel", "touchstart", "keydown", "mousedown"].includes(e.k) || (e.k === "mousemove" && pressed)) lastInput = e.t;
-    if (e.k !== "scroll" || e.d === undefined) continue;
-    if (!touchy && !pressed && e.t - lastInput > SCROLL_INPUT_WINDOW_MS) without++;
+    if (e.k === "mousedown") pressedAt = e.t;
+    if (e.k === "mouseup" && pressedAt !== null) (held.push([pressedAt, e.t]), (pressedAt = null));
+    if (["wheel", "touchstart", "keydown", "mousedown"].includes(e.k) || (e.k === "mousemove" && pressedAt !== null)) inputTimes.push(e.t);
+  }
+  if (pressedAt !== null) held.push([pressedAt, Infinity]);
+
+  const bursts: BehaviorEvent[][] = [];
+  for (const e of scrolls) {
     const cur = bursts.at(-1);
     if (cur && cur.at(-1)!.f === e.f && e.t - cur.at(-1)!.t <= SCROLL_BURST_GAP_MS) cur.push(e);
     else bursts.push([e]);
   }
+  // A whole burst counts as input-driven if input came just before it started or at any point while it ran: browsers
+  // keep animating a wheel scroll (and inertia keeps it going) well after the last wheel event.
+  const driven = (b: BehaviorEvent[]) => {
+    const start = b[0]!.t;
+    const end = b.at(-1)!.t;
+    return (
+      touchy ||
+      inputTimes.some((t) => t >= start - SCROLL_INPUT_WINDOW_MS && t <= end) ||
+      held.some(([from, to]) => from <= end && to >= start)
+    );
+  };
   const dist = (b: BehaviorEvent[]) => Math.abs(b.at(-1)!.d! - b[0]!.d!);
   const dur = (b: BehaviorEvent[]) => b.at(-1)!.t - b[0]!.t;
   f["behavior.scroll.events"] = scrolls.length;
-  f["behavior.scroll.without_input"] = without;
+  f["behavior.scroll.without_input"] = bursts.filter((b) => !driven(b)).reduce((s, b) => s + b.length, 0);
   f["behavior.scroll.instant_jumps"] = bursts.filter((b) => dist(b) >= INSTANT_JUMP_PX && dur(b) <= INSTANT_JUMP_MS).length;
   f["behavior.scroll.gradual_bursts"] = bursts.filter((b) => b.length >= 5 && dur(b) >= 100).length;
   f["behavior.scroll.distance_stdev"] = bursts.length >= 2 ? round(stdev(bursts.map(dist))) : null;
