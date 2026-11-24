@@ -11,6 +11,7 @@ import { registerAdminRoutes } from "./admin.js";
 import { parseTrace } from "./behavior/validate.js";
 import { computeFeatures } from "./behavior/features.js";
 import { assess } from "./behavior/rules.js";
+import { mcpRoute } from "./mcp/server.js";
 
 function json(res: Parameters<Handler>[1], status: number, body: unknown): void {
   res.statusCode = status;
@@ -67,6 +68,11 @@ export function createApp(config: RuntimeConfig = loadConfig(), store: Fingerpri
   });
 
   registerAdminRoutes(router, config, store);
+
+  // MCP (Model Context Protocol) server for AI applications: POST /mcp. GET answers 405 (no server-push stream). See docs/MCP.md.
+  const mcp = mcpRoute({ config, store });
+  router.post("/mcp", mcp);
+  router.get("/mcp", mcp);
 
   router.get("/api/v1/signals", (_req, res) => {
     json(res, 200, { schemaVersion: SCHEMA_VERSION, signals: SIGNAL_CATALOG });
