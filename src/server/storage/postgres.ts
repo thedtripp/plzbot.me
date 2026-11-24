@@ -6,8 +6,8 @@ import { migrateLegacy } from "./legacy.js";
 import { StorageLimiter, limiterKey } from "./rateLimit.js";
 import { INSERT_VISIT, SCHEMA, visitParams } from "./schema.js";
 
-/** page_view = HTML request, api_get = GET /api/v1/fingerprint, client_submit = browser POST. */
-export type FingerprintKind = "page_view" | "api_get" | "client_submit";
+/** page_view = HTML request, api_get = GET /api/v1/fingerprint, client_submit = browser POST, mcp = fingerprint_me tool call. */
+export type FingerprintKind = "page_view" | "api_get" | "client_submit" | "mcp";
 
 export interface FingerprintStore {
   /** Fire-and-forget: never throws and never blocks the request. */

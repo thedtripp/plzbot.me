@@ -64,6 +64,13 @@ time, `it` `inputType`, `d` scroll position. At most 5,000 events; unknown field
 `likely_automated | likely_human | inconclusive | not_enough_interaction`; each `evidence` item cites the
 `features` ids (documented in `GET /api/v1/signals`) it was computed from. `400` for a malformed trace.
 
+### `POST /mcp` (Model Context Protocol)
+
+A public, read-only MCP server (Streamable HTTP, stateless) for AI applications: tools `fingerprint_me` (this
+request's fingerprint) and `explain_signal` (catalog lookup), and resources `plzbot://about`, `plzbot://signals` and
+`plzbot://signals/{id}`. It serves protocol 2026-07-28 and the 2025 versions. `GET /mcp` returns `405`. A request
+whose `Origin` isn't allowed gets `403`; more than 120 requests a minute gets `429`. See `docs/MCP.md`.
+
 ### `GET /api/v1/signals`
 
 Returns the static educational signal catalog (`src/server/interpret/catalog.ts`): a map from
